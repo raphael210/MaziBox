@@ -1,8 +1,17 @@
 # Ladder Position Strategy
 
-rtn <- as.xts(rtn.LBH)
-tmp <- rtn[,'long']
-
+#' Function for calculate NAV for Ladder Position Strategy
+#'
+#' @param rtn A xts of daily return(value not in percentage).
+#' @param pos A vector indicating the position values for each stage.
+#' @param cutvalue A vector indicating the maximum NAV for each stage.
+#'
+#' @return Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day.
+#'
+#' The NAV_1 represents the net asset value in the 2-years period, which means the NAV_1 is set to 1.00 at the beginning of every 2 years.
+#'
+#' The NAV_2 represents the net asset value since the first date.
+#'
 Ladder_NAV <- function(rtn,
                        pos = c(0.15,0.25,0.35,0.5),
                        cutvalue = c(1.05,1.10,1.20)){
@@ -51,12 +60,4 @@ Ladder_NAV <- function(rtn,
   res <- cbind(rtn,posvec,NAV_1,NAV_2)
   return(res)
 }
-
-res <- Ladder_NAV(tmp)
-
-cc <- c(
-   as.Date("2010-12-31"),
-   as.Date("2012-12-31"),
-   as.Date("2014-12-31"),
-   as.Date("2016-06-30"))
 
