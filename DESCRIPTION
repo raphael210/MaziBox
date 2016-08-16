@@ -2,8 +2,9 @@ Package: MaziBox
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
+Imports: xts, lubridate
 Author: Mazi
-Maintainer: Mazi <309480338@qq.com>
+Maintainer: Mazi <qianhan_cn@qq.com>
 Description: It's the mysterious box owned by Mazi
 License: What license is it under?
 LazyData: TRUE

@@ -1,0 +1,62 @@
+# Ladder Position Strategy
+
+rtn <- as.xts(rtn.LBH)
+tmp <- rtn[,'long']
+
+Ladder_NAV <- function(rtn,
+                       pos = c(0.15,0.25,0.35,0.5),
+                       cutvalue = c(1.05,1.10,1.20)){
+  if(!is.xts(rtn)) stop("The rtn input is not xts class.")
+  if(length(pos) != length(cutvalue)+1 ) stop("It's not a valid pair of pos and cutvalue.")
+
+  newpos <- function(NV) {
+    tmp.res <- NULL
+    lll <- length(cutvalue)
+    for(i in lll:1){
+      if(NV < cutvalue[i]){tmp.res <- pos[i]}
+    }
+    if(is.null(tmp.res)){tmp.res <- pos[lll+1]}
+    return(tmp.res)
+  }
+
+  flag <- vector("numeric",length(rtn))
+  yyy <- year( index(rtn) )
+  if(length(flag) != length(yyy)){stop(" flag error. ")}
+  base <- yyy[1]
+  flag = (yyy-base)%/%2+1
+
+  len <- length(rtn)
+  NAV_1 <- vector("numeric", len)
+  NAV_2 <- vector("numeric", len)
+  posvec <- vector("numeric", len)
+  posvec[1] <- pos[1]
+  NAV_1[1] <- (rtn[1]*posvec[1] + 1)*1
+  NAV_2[1] <- (rtn[1]*posvec[1] + 1)*1
+  tmp.flag = 1
+
+  for( i in 2:len ){
+    if(flag[i] > tmp.flag){
+      posvec[i] = pos[1]
+      aa <- rtn[i] * posvec[i] + 1
+      NAV_1[i] = aa * 1
+      NAV_2[i] = aa * NAV_2[i-1]
+      tmp.flag = flag[i]
+    }else{
+      posvec[i] = newpos(NAV_1[i-1])
+      aa <- rtn[i] * posvec[i] + 1
+      NAV_1[i] =  aa *  NAV_1[i-1]
+      NAV_2[i] =  aa * NAV_2[i-1]
+    }
+  }
+  res <- cbind(rtn,posvec,NAV_1,NAV_2)
+  return(res)
+}
+
+res <- Ladder_NAV(tmp)
+
+cc <- c(
+   as.Date("2010-12-31"),
+   as.Date("2012-12-31"),
+   as.Date("2014-12-31"),
+   as.Date("2016-06-30"))
+
