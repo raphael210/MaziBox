@@ -2,9 +2,9 @@ Package: MaziBox
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: Who to complain to <yourfault@somewhere.net>
-Description: More about what it does (maybe more than one line)
+Author: Mazi
+Maintainer: Mazi <309480338@qq.com>
+Description: It's the mysterious box owned by Mazi
 License: What license is it under?
 LazyData: TRUE
 RoxygenNote: 5.0.1

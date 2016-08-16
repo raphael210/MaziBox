@@ -13,33 +13,10 @@
 #   Check Package:             'Ctrl + Shift + E'
 #   Test Package:              'Ctrl + Shift + T'
 
-
-
-#' The simple test for 1
-#'
-#'
-#'
-#'
-#'
-#'
-#'
 hello <- function() {
   print("Hello, world!")
 }
 
-
-
-#' The simple test for 2
-#'
-#'
-#'
-#'
-#'
-#'
-#'
-hello2 <- function(x,y){
-  return(x-y)
-}
 
 
 
