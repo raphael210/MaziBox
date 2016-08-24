@@ -12,7 +12,7 @@
 #'
 #' The NAV_2 represents the net asset value since the first date.
 #'
-Ladder_NAV <- function(rtn,
+LadderNAV <- function(rtn,
                        pos = c(0.15,0.25,0.35,0.5),
                        cutvalue = c(1.05,1.10,1.20)){
   if(!is.xts(rtn)) stop("The rtn input is not xts class.")
