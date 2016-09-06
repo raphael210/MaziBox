@@ -12,7 +12,8 @@ ladderNAV <- function(stockrtn, bondrtn,
   if(!(xts::is.xts(stockrtn))) stop("The stockrtn input is not xts class.")
   if(length(pos) != length(cutvalue)+1 ) stop("It's not a valid pair of pos and cutvalue.")
   if(!missing(bondrtn)){
-  if(length(stockrtn) != length(bondrtn)) stop("The stockrtn and bondrtn does not match.")
+    if(!(xts::is.xts(bondrtn))) stop("The bondrtn input is not xts class.")
+    if(!all(index(stockrtn) == index(bondrtn))) stop("The stockrtn and bondrtn does not match.")
   }
   # sub-func
   newpos <- function(NV) {
@@ -84,3 +85,13 @@ ladderNAV <- function(stockrtn, bondrtn,
   return(res)
 }
 
+#' Get bond daily return from WindR
+#' @return return bond daily return from WindR
+#' @export
+getBondrtn <- function(startdate = "2009-01-01", enddate = "2016-06-30", code = "037.CS"){
+  w_wsd_data<-WindR::w.wsd(code,"pct_chg",startdate,enddate)
+  tmp <- w_wsd_data$Data
+  bondrtn <- xts::as.xts(x=tmp$PCT_CHG, order.by = tmp$DATETIME)
+  names(bondrtn) = "bond"
+  return(bondrtn)
+}
