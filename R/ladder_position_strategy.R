@@ -1,6 +1,7 @@
 #' Function for calculate NAV for Ladder Position Strategy
 #'
-#' @param stockrtn A xts of daily return(value not in percentage).
+#' @param stockrtn A xts of daily return(value in not in percentage).
+#' @param bondrtn A xts of daily return(not in percentage).
 #' @param pos A vector indicating the position values for each stage.
 #' @param cutvalue A vector indicating the maximum NAV for each stage.
 #' @return Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day. NAV_1 represents the net asset value with rebalance every 2 years. NAV_2 represents the net asset value wihout rebalance.
@@ -79,8 +80,10 @@ ladderNAV <- function(stockrtn, bondrtn,
   # organize and output
   if(missing(bondrtn)){
     res <- cbind(stockrtn,posvec,NAV_1,NAV_2)
+    names(res) <- c("stockrtn","pos","NAV_adj","NAV_unadj")
   }else{
     res <- cbind(stockrtn,bondrtn,posvec,NAV_1,NAV_2)
+    names(res) <- c("stockrtn","bondrtn","pos","NAV_adj","NAV_unadj")
   }
   return(res)
 }
