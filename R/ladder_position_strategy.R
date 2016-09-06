@@ -44,20 +44,20 @@ ladderNAV <- function(stockrtn, bondrtn,
 
   # calc NAV
   if(missing(bondrtn)){
-  for( i in 2:len ){
-    if(flag[i] > tmp.flag){ # rebalance to 1
-      posvec[i] = pos[1]
-      aa <- stockrtn[i] * posvec[i] + 1
-      NAV_1[i] = aa * 1
-      NAV_2[i] = aa * NAV_2[i-1]
-      tmp.flag = flag[i]
-    }else{
-      posvec[i] = newpos(NAV_1[i-1])
-      aa <- stockrtn[i] * posvec[i] + 1
-      NAV_1[i] =  aa * NAV_1[i-1]
-      NAV_2[i] =  aa * NAV_2[i-1]
+    for( i in 2:len ){
+      if(flag[i] > tmp.flag){ # rebalance to 1
+        posvec[i] = pos[1]
+        aa <- stockrtn[i] * posvec[i] + 1
+        NAV_1[i] = aa * 1
+        NAV_2[i] = aa * NAV_2[i-1]
+        tmp.flag = flag[i]
+      }else{
+        posvec[i] = newpos(NAV_1[i-1])
+        aa <- stockrtn[i] * posvec[i] + 1
+        NAV_1[i] =  aa * NAV_1[i-1]
+        NAV_2[i] =  aa * NAV_2[i-1]
+      }
     }
-  }
   }else{
     for( i in 2:len ){
       if(flag[i] > tmp.flag){ # rebalance to 1
