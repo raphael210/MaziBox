@@ -14,7 +14,7 @@ ladderNAV(rtn, pos = c(0.15, 0.25, 0.35, 0.5), cutvalue = c(1.05, 1.1, 1.2))
 \item{cutvalue}{A vector indicating the maximum NAV for each stage.}
 }
 \value{
-Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day. NAV_1 represents the net asset value with rebalance. NAV_2 represents the net asset value wihout rebalance.
+Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day. NAV_1 represents the net asset value with rebalance every 2 years. NAV_2 represents the net asset value wihout rebalance.
 }
 \description{
 Function for calculate NAV for Ladder Position Strategy
