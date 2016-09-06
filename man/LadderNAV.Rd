@@ -8,7 +8,9 @@ ladderNAV(stockrtn, bondrtn, pos = c(0.15, 0.25, 0.35, 0.5),
   cutvalue = c(1.05, 1.1, 1.2))
 }
 \arguments{
-\item{stockrtn}{A xts of daily return(value not in percentage).}
+\item{stockrtn}{A xts of daily return(value in not in percentage).}
+
+\item{bondrtn}{A xts of daily return(not in percentage).}
 
 \item{pos}{A vector indicating the position values for each stage.}
 
