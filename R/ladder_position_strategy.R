@@ -1,21 +1,14 @@
-# Ladder Position Strategy
-
 #' Function for calculate NAV for Ladder Position Strategy
 #'
 #' @param rtn A xts of daily return(value not in percentage).
 #' @param pos A vector indicating the position values for each stage.
 #' @param cutvalue A vector indicating the maximum NAV for each stage.
-#'
-#' @return Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day.
-#'
-#' The NAV_1 represents the net asset value in the 2-years period, which means the NAV_1 is set to 1.00 at the beginning of every 2 years.
-#'
-#' The NAV_2 represents the net asset value since the first date.
-#'
-LadderNAV <- function(rtn,
+#' @return Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day. NAV_1 represents the net asset value with rebalance every 2 years. NAV_2 represents the net asset value wihout rebalance.
+#' @export
+ladderNAV <- function(rtn,
                        pos = c(0.15,0.25,0.35,0.5),
                        cutvalue = c(1.05,1.10,1.20)){
-  if(!is.xts(rtn)) stop("The rtn input is not xts class.")
+  if(!xts::is.xts(rtn)) stop("The rtn input is not xts class.")
   if(length(pos) != length(cutvalue)+1 ) stop("It's not a valid pair of pos and cutvalue.")
 
   newpos <- function(NV) {
@@ -29,7 +22,7 @@ LadderNAV <- function(rtn,
   }
 
   flag <- vector("numeric",length(rtn))
-  yyy <- year( index(rtn) )
+  yyy <- lubridate::year( index(rtn) )
   if(length(flag) != length(yyy)){stop(" flag error. ")}
   base <- yyy[1]
   flag = (yyy-base)%/%2+1
