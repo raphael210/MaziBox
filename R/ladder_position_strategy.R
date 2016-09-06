@@ -1,16 +1,20 @@
 #' Function for calculate NAV for Ladder Position Strategy
 #'
-#' @param rtn A xts of daily return(value not in percentage).
+#' @param stockrtn A xts of daily return(value not in percentage).
 #' @param pos A vector indicating the position values for each stage.
 #' @param cutvalue A vector indicating the maximum NAV for each stage.
 #' @return Returning a data frame, containing return, postion, NAV_1, NAV_2 for each trading day. NAV_1 represents the net asset value with rebalance every 2 years. NAV_2 represents the net asset value wihout rebalance.
 #' @export
-ladderNAV <- function(rtn,
+ladderNAV <- function(stockrtn, bondrtn,
                        pos = c(0.15,0.25,0.35,0.5),
                        cutvalue = c(1.05,1.10,1.20)){
-  if(!xts::is.xts(rtn)) stop("The rtn input is not xts class.")
+  # input check
+  if(!(xts::is.xts(stockrtn))) stop("The stockrtn input is not xts class.")
   if(length(pos) != length(cutvalue)+1 ) stop("It's not a valid pair of pos and cutvalue.")
-
+  if(!missing(bondrtn)){
+  if(length(stockrtn) != length(bondrtn)) stop("The stockrtn and bondrtn does not match.")
+  }
+  # sub-func
   newpos <- function(NV) {
     tmp.res <- NULL
     lll <- length(cutvalue)
@@ -21,36 +25,62 @@ ladderNAV <- function(rtn,
     return(tmp.res)
   }
 
-  flag <- vector("numeric",length(rtn))
-  yyy <- lubridate::year( index(rtn) )
+  # construct flag/rebalance cycle index
+  flag <- vector("numeric",length(stockrtn))
+  yyy <- lubridate::year( index(stockrtn) )
   if(length(flag) != length(yyy)){stop(" flag error. ")}
   base <- yyy[1]
   flag = (yyy-base)%/%2+1
 
-  len <- length(rtn)
+  # initiate variables
+  len <- length(stockrtn)
   NAV_1 <- vector("numeric", len)
   NAV_2 <- vector("numeric", len)
   posvec <- vector("numeric", len)
   posvec[1] <- pos[1]
-  NAV_1[1] <- (rtn[1]*posvec[1] + 1)*1
-  NAV_2[1] <- (rtn[1]*posvec[1] + 1)*1
+  NAV_1[1] <- (stockrtn[1]*posvec[1] + 1)*1
+  NAV_2[1] <- (stockrtn[1]*posvec[1] + 1)*1
   tmp.flag = 1
 
+  # calc NAV
+  if(missing(bondrtn)){
   for( i in 2:len ){
-    if(flag[i] > tmp.flag){
+    if(flag[i] > tmp.flag){ # rebalance to 1
       posvec[i] = pos[1]
-      aa <- rtn[i] * posvec[i] + 1
+      aa <- stockrtn[i] * posvec[i] + 1
       NAV_1[i] = aa * 1
       NAV_2[i] = aa * NAV_2[i-1]
       tmp.flag = flag[i]
     }else{
       posvec[i] = newpos(NAV_1[i-1])
-      aa <- rtn[i] * posvec[i] + 1
-      NAV_1[i] =  aa *  NAV_1[i-1]
+      aa <- stockrtn[i] * posvec[i] + 1
+      NAV_1[i] =  aa * NAV_1[i-1]
       NAV_2[i] =  aa * NAV_2[i-1]
     }
   }
-  res <- cbind(rtn,posvec,NAV_1,NAV_2)
+  }else{
+    for( i in 2:len ){
+      if(flag[i] > tmp.flag){ # rebalance to 1
+        posvec[i] = pos[1]
+        aa <- stockrtn[i] * posvec[i] + bondrtn[i] * (1-posvec[i]) + 1
+        NAV_1[i] = aa * 1
+        NAV_2[i] = aa * NAV_2[i-1]
+        tmp.flag = flag[i]
+      }else{
+        posvec[i] = newpos(NAV_1[i-1])
+        aa <- stockrtn[i] * posvec[i] + bondrtn[i] * (1-posvec[i]) + 1
+        NAV_1[i] =  aa * NAV_1[i-1]
+        NAV_2[i] =  aa * NAV_2[i-1]
+      }
+    }
+  }
+
+  # organize and output
+  if(missing(bondrtn)){
+    res <- cbind(stockrtn,posvec,NAV_1,NAV_2)
+  }else{
+    res <- cbind(stockrtn,bondrtn,posvec,NAV_1,NAV_2)
+  }
   return(res)
 }
 
