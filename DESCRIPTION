@@ -2,7 +2,7 @@ Package: MaziBox
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
-Imports: xts, lubridate
+Imports: xts, lubridate, WindR
 Author: Mazi
 Maintainer: Mazi <qianhan_cn@qq.com>
 Description: It's the mysterious box owned by Mazi
