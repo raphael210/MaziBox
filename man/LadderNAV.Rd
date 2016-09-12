@@ -21,7 +21,7 @@ ladder position port function
 }
 \examples{
 assetRtn <- rtndemo
-ruledf <- data.frame(nav = c(1,1.05,1.10,1.20),pos = c(0.15,0.25,0.35,0.5))
+ruledf <- data.frame(nav = c(0,1.05,1.10,1.20),pos = c(0.15,0.25,0.35,0.5))
 re <- ladderNAV(assetRtn,ruledf)
 rebalance <- '2 years'
 re <- ladderNAV(assetRtn,ruledf,rebalance)
