@@ -134,3 +134,17 @@ daily2monthly <- function(df, date, value, std = TRUE, tradingday = TRUE){
   if(std == TRUE) {df <- RFactorModel:::factor.std(df, factorStd = "norm")}
   return(df)
 }
+
+#' Wrap up tsRemoteCallFunc with additional StockID column
+#'
+#' @param funchar A character string indicating which function to use in tsRemoteCallFunc.
+#' @param StockID A vector.
+#' @return A complicated list without unlist.
+#' @export
+wraptsfun <- function(funchar, StockID){
+  force(StockID)
+  tmp <- tsRemoteCallFunc(funchar = funchar,pars = NULL ,syspars = list(StockID = StockID))
+  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID ))
+  return(tmp)
+}
+
