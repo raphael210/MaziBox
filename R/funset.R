@@ -72,6 +72,7 @@ ladderNAV <- function(assetRtn,ruledf,rebalance=NULL){
 tidytsf <- function(tsf, reorder = NULL){
   if(!is.null(reorder)) {tsf = tsf[,reorder]}
   colnames(tsf) <- c("date","stockID","factorscore")
+  if(is.integer(tsf$date))  tsf$date <- intdate2r(tsf$date)
   tsf$date <- as.Date(tsf$date)
   if(substr(tsf$stockID[1],1,2) != "EQ") tsf$stockID <- paste('EQ',substr(x = tsf$stockID,start = 1,stop = 6),sep = "")
   return(tsf)
@@ -138,13 +139,16 @@ daily2monthly <- function(df, date, value, std = TRUE, tradingday = TRUE){
 #' Wrap up tsRemoteCallFunc with additional StockID column
 #'
 #' @param funchar A character string indicating which function to use in tsRemoteCallFunc.
-#' @param StockID A vector.
+#' @param funpar A list for function parameters.
+#' @param syspar A list for system parameters, eg. StockID.
 #' @return A complicated list without unlist.
 #' @export
-wraptsfun <- function(funchar, StockID){
-  force(StockID)
-  tmp <- tsRemoteCallFunc(funchar = funchar,pars = NULL ,syspars = list(StockID = StockID))
-  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID ))
+wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
+  # funpar <- list(begT = rdate2ts(as.Date("2014-01-01")),
+  #                endT = rdate2ts(as.Date("2014-01-01")))
+  # syspar <- list(StockID = StockID)
+  tmp <- tsRemoteCallFunc(funchar = funchar, pars = funpar, syspars = syspar)
+  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID))
   return(tmp)
 }
 
