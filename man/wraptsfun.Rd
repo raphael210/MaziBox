@@ -4,12 +4,14 @@
 \alias{wraptsfun}
 \title{Wrap up tsRemoteCallFunc with additional StockID column}
 \usage{
-wraptsfun(funchar, StockID)
+wraptsfun(funchar, funpar = NULL, syspar = NULL)
 }
 \arguments{
 \item{funchar}{A character string indicating which function to use in tsRemoteCallFunc.}
 
-\item{StockID}{A vector.}
+\item{funpar}{A list for function parameters.}
+
+\item{syspar}{A list for system parameters, eg. StockID.}
 }
 \value{
 A complicated list without unlist.
