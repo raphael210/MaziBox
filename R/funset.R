@@ -158,7 +158,6 @@ wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
 #' @param ETS A event TS object which includes the event date and the corresponding stock.
 #' @param win1 Integer. The time window of days before the event date.
 #' @param win2 Integer. The time window of days after the event date.
-#' @param adjtrday Logical values. Whether to adjust the event date to the next nearest trading day.
 #' @return A TS object with index.
 EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date', 'stockID'))
@@ -179,7 +178,6 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' @param db The name string of local database err sheet which containing the columns of "date", "stockID", "err".
 #' @param win1 Integer. The time window of days before the event date.
 #' @param win2 Integer. The time window of days after the event date.
-#' @param adjtrday Logical values. Whether to adjust the event date to the next nearest trading day.
 #' @return A TS object with Err and index.
 #' @export
 EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
