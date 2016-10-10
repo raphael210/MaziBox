@@ -12,6 +12,8 @@ EE_ExpandETS_1row(ETS, win1 = 20, win2 = 60)
 \item{win1}{Integer. The time window of days before the event date.}
 
 \item{win2}{Integer. The time window of days after the event date.}
+
+\item{adjtrday}{Logical values. Whether to adjust the event date to the next nearest trading day.}
 }
 \value{
 A TS object with index.
