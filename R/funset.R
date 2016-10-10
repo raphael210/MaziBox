@@ -152,3 +152,51 @@ wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
   return(tmp)
 }
 
+
+#' Expand ETS object into TS object with index
+#'
+#' @param ETS A event TS object which includes the event date and the corresponding stock.
+#' @param win1 Integer. The time window of days before the event date.
+#' @param win2 Integer. The time window of days after the event date.
+#' @return A TS object with index.
+EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
+  QUtility::check.colnames(ETS, c('date', 'stockID'))
+  if(nrow(ETS) != 1L) {stop("this function can only be used on ETS of 1 observation.")}
+  begT = QDataGet::trday.nearby(ETS$date, by = win1)
+  endT = QDataGet::trday.nearby(ETS$date, by = -win2)
+  res <- QDataGet::trday.get(begT = begT, endT = endT)
+  ID <- rep(ETS$stockID, length(res))
+  index <- 1:length(res)
+  finalres <- data.frame('No' = index,'date' = res, 'stockID' = ID)
+  return(finalres)
+}
+
+#' Plug in ETS and return a TS object with Err and index.
+#'
+#' @param ETS A event TS object which includes the event date and the corresponding stock.
+#' @param db The name string of local database err sheet which containing the columns of "date", "stockID", "err".
+#' @param win1 Integer. The time window of days before the event date.
+#' @param win2 Integer. The time window of days after the event date.
+#' @return A TS object with Err and index.
+#' @export
+EE_GetETSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
+  QUtility::check.colnames(ETS, c('date','stockID'))
+  temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
+  TargetTS <- subset(temp, select = c('No', 'date', 'stockID'))
+  # write into lcdb, read back with left join with err
+  TargetTS$date <- QUtility::rdate2int(TargetTS$date)
+  con <- QDataGet::db.local()
+  DBI::dbWriteTable(conn = con, value = TargetTS, name = 'mazi_tmp', overwrite = TRUE, append = FALSE, row.names = FALSE)
+  qr <- paste (
+    "select a.*, b.err
+    from mazi_tmp a
+    left join ", db, " b
+    on a.stockID = b.stockID
+    and a.date = b.date"
+  )
+  finalres <- DBI::dbGetQuery(con, qr)
+  DBI::dbDisconnect(conn = con)
+  # double check
+  QUtility::check.colnames(finalres,c("No","date","stockID","err"))
+  return(finalres)
+}

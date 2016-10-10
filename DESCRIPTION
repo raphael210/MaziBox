@@ -2,7 +2,7 @@ Package: MaziBox
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
-Imports: xts, lubridate, plyr, QUtility, QDataGet, RFactorModel
+Imports: xts, lubridate, plyr, QUtility, QDataGet, RFactorModel, DBI
 Author: Mazi
 Maintainer: Mazi <qianhan_cn@qq.com>
 Description: It's the mysterious box owned by Mazi
