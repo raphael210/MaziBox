@@ -182,7 +182,7 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' @export
 EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date','stockID'))
-  temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2, adjtrday = adjtrday))
+  temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
   TargetTS <- subset(temp, select = c('No', 'date', 'stockID'))
   # write into lcdb, read back with left join with err
   TargetTS$date <- QUtility::rdate2int(TargetTS$date)
@@ -200,4 +200,28 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   # double check
   QUtility::check.colnames(finalres,c("No","date","stockID","err"))
   return(finalres)
+}
+
+#' Plug in TSErr object and return the summary plot
+#'
+#' @param TSErr The TSErr object which must containing No and err columns.
+#' @return Two plots.
+#' @export
+EE_Plot <- function(TSErr){
+  tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
+  colnames(tmpdat) <- c("No","err")
+  tmpvec <- cumprod(tmpdat$err+1)
+  TSErr1 <- data.frame('No'=tmpdat$No, 'err' = tmpvec)
+  p1 <-  ggplot2::ggplot()+
+    ggplot2::geom_path(data = TSErr1, ggplot2::aes(x = No, y=err), size = 1)+
+    ggplot2::geom_vline(xintercept = 0, color = 'red', linetype = 2)+
+    ggplot2::ylab("Accumulated Abnormal Return")+ggplot2::xlab("Date Series")+
+    ggplot2::theme(axis.title.x = ggplot2::element_blank())
+  TSErr2 <- tmpdat
+  p2 <- ggplot2::ggplot()+
+    ggplot2::geom_bar(data = TSErr2, ggplot2::aes(x = No, y=err), stat = 'identity')+
+    ggplot2::geom_vline(xintercept = 0, color = 'red', linetype = 2)+
+    ggplot2::ylab("Daily Abnormal Return")+ggplot2::xlab("Date Series")
+  re <- QUtility::multiplot(plotlist = list(p1,p2), ncol=1)
+  return(re)
 }
