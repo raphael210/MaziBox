@@ -208,6 +208,7 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
 #' @return Two plots.
 #' @export
 EE_Plot <- function(TSErr){
+  TSErr$err <- fillna(TSErr$err, method = "zero")
   tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
   colnames(tmpdat) <- c("No","err")
   tmpvec <- cumprod(tmpdat$err+1)
