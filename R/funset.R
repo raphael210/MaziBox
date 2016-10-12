@@ -180,6 +180,12 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' @param win2 Integer. The time window of days after the event date.
 #' @return A TS object with Err and index.
 #' @export
+#' @example
+#' date <- as.Date(c("2014-07-01","2014-07-08))
+#' stockID <- c("EQ000001","EQ000002")
+#' ETS <- data.frame(date, stockID)
+#' TSErr <- EE_GetTSErr(ETS)
+#' EE_Plot(TSErr)
 EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date','stockID'))
   temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
@@ -207,6 +213,12 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
 #' @param TSErr The TSErr object which must containing No and err columns.
 #' @return Two plots.
 #' @export
+#' @example
+#' date <- as.Date(c("2014-07-01","2014-07-08))
+#' stockID <- c("EQ000001","EQ000002")
+#' ETS <- data.frame(date, stockID)
+#' TSErr <- EE_GetTSErr(ETS)
+#' EE_Plot(TSErr)
 EE_Plot <- function(TSErr){
   TSErr$err <- fillna(TSErr$err, method = "zero")
   tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
@@ -214,7 +226,7 @@ EE_Plot <- function(TSErr){
   tmpvec <- cumprod(tmpdat$err+1)
   TSErr1 <- data.frame('No'=tmpdat$No, 'err' = tmpvec)
   p1 <-  ggplot2::ggplot()+
-    ggplot2::geom_path(data = TSErr1, ggplot2::aes(x = No, y=err), size = 1)+
+    ggplot2::geom_path(data = TSErr1, ggplot2::aes(x = No, y=err), size = 1) +
     ggplot2::geom_vline(xintercept = 0, color = 'red', linetype = 2)+
     ggplot2::ylab("Accumulated Abnormal Return")+ggplot2::xlab("Date Series")+
     ggplot2::theme(axis.title.x = ggplot2::element_blank())
