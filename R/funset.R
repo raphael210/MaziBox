@@ -180,8 +180,8 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' @param win2 Integer. The time window of days after the event date.
 #' @return A TS object with Err and index.
 #' @export
-#' @example
-#' date <- as.Date(c("2014-07-01","2014-07-08))
+#' @examples
+#' date <- as.Date(c("2014-07-01","2014-07-08"))
 #' stockID <- c("EQ000001","EQ000002")
 #' ETS <- data.frame(date, stockID)
 #' TSErr <- EE_GetTSErr(ETS)
@@ -205,6 +205,7 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   DBI::dbDisconnect(conn = con)
   # double check
   QUtility::check.colnames(finalres,c("No","date","stockID","err"))
+  finalres$date <- QUtility::intdate2r(finalres$date)
   return(finalres)
 }
 
@@ -213,8 +214,8 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
 #' @param TSErr The TSErr object which must containing No and err columns.
 #' @return Two plots.
 #' @export
-#' @example
-#' date <- as.Date(c("2014-07-01","2014-07-08))
+#' @examples
+#' date <- as.Date(c("2014-07-01","2014-07-08"))
 #' stockID <- c("EQ000001","EQ000002")
 #' ETS <- data.frame(date, stockID)
 #' TSErr <- EE_GetTSErr(ETS)
@@ -237,4 +238,63 @@ EE_Plot <- function(TSErr){
     ggplot2::ylab("Daily Abnormal Return")+ggplot2::xlab("Date Series")
   re <- QUtility::multiplot(plotlist = list(p1,p2), ncol=1)
   return(re)
+}
+
+
+
+
+#' Get ETS object from JY database
+#'
+#' @param stock.column The column name string of the stockID in the data.
+#' @param stock.decode The column name string that is used to decode the stockID.
+#' @param date.column The column name string of the date in the data.
+#' @param SheetName The sheet name string of the data.
+#' @param key.column The column name string of the key variable in the data.
+#' @param key.decode The decoding number that is used to interpret the key.column.
+#' @return A dataframe with date, stockID and var(key column).
+#' @export
+#' @examples
+#' # Fetching the ETS of investors' activities.
+#' ETS <- EE_GetETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
+#'                        date.column = "InfoPublDate", SheetName = "LC_InvestorRa", key.column = "SerialNb")
+#'
+EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCode",
+                            date.column = "InfoPublDate",
+                            SheetName, key.column, key.decode = NULL){
+  if(is.null(key.decode)){
+    qr <- paste(
+      "select  convert(varchar(8),target.",date.column,",112) date,
+      'EQ'+s.SecuCode stockID,
+      target.",key.column," var
+      from JYDB.dbo.",SheetName," target,
+      JYDB.dbo.SecuMain s
+      where target.",stock.column," = s.",stock.decode,"
+      and s.SecuCategory in (1,2)"
+    )
+  }else{
+    qr <- paste(
+      "select  convert(varchar(8),target.",date.column,",112) date,
+      'EQ'+s.SecuCode stockID,
+      decode.MS var
+      from JYDB.dbo.",SheetName," target,
+      JYDB.dbo.SecuMain s,
+      JYDB.dbo.CT_SystemConst decode
+      where target.",stock.column," = s.",stock.decode,"
+      and s.SecuCategory in (1,2)
+      and target.",key.column," = decode.DM
+      and decode.LB = ",key.decode
+    )
+  }
+  temp <- RODBC::sqlQuery(db.jy(), qr, errors = FALSE)
+  if(is.integer(temp)){
+    if(temp == -1L){
+      temp <- RODBC::sqlQuery(db.jy(), qr)
+      warning("Getquery step failed.")
+      return(temp)
+    }
+  }
+  temp$date <- QUtility::intdate2r(temp$date)
+  # double check
+  QUtility::check.colnames(temp, c("date","stockID","var"))
+  return(temp)
 }

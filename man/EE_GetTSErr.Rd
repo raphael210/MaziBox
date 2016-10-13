@@ -21,4 +21,11 @@ A TS object with Err and index.
 \description{
 Plug in ETS and return a TS object with Err and index.
 }
+\examples{
+date <- as.Date(c("2014-07-01","2014-07-08"))
+stockID <- c("EQ000001","EQ000002")
+ETS <- data.frame(date, stockID)
+TSErr <- EE_GetTSErr(ETS)
+EE_Plot(TSErr)
+}
 

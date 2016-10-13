@@ -15,4 +15,11 @@ Two plots.
 \description{
 Plug in TSErr object and return the summary plot
 }
+\examples{
+date <- as.Date(c("2014-07-01","2014-07-08"))
+stockID <- c("EQ000001","EQ000002")
+ETS <- data.frame(date, stockID)
+TSErr <- EE_GetTSErr(ETS)
+EE_Plot(TSErr)
+}
 

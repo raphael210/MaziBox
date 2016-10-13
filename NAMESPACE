@@ -2,6 +2,7 @@
 
 export(EE_GetTSErr)
 export(EE_Plot)
+export(EE_getETSfromJY)
 export(daily2monthly)
 export(fillna)
 export(ladderNAV)
