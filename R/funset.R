@@ -255,7 +255,7 @@ EE_Plot <- function(TSErr){
 #' @export
 #' @examples
 #' # Fetching the ETS of investors' activities.
-#' ETS <- EE_GetETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
+#' ETS <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
 #'                        date.column = "InfoPublDate", SheetName = "LC_InvestorRa", key.column = "SerialNb")
 #'
 EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCode",
@@ -285,7 +285,7 @@ EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCod
       and decode.LB = ",key.decode
     )
   }
-  temp <- RODBC::sqlQuery(db.jy(), qr, errors = FALSE)
+  temp <- RODBC::sqlQuery(QDataGet::db.jy(), qr, errors = FALSE)
   if(is.integer(temp)){
     if(temp == -1L){
       temp <- RODBC::sqlQuery(db.jy(), qr)
@@ -298,3 +298,54 @@ EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCod
   QUtility::check.colnames(temp, c("date","stockID","var"))
   return(temp)
 }
+
+
+
+#' Split and return the plots of each year
+#'
+#' @param TSErr The TSErr object.
+#' @param everyyear Logical value. Whether to return the plot of details in each year.
+#' @param breakwindow Logical value. Whether to keep the event window complete. default is false.
+#' @return A list containing plots and data.
+#' @export
+EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
+
+  if(breakwindow == FALSE){
+    coreETS <- subset(TSErr, No == 0, select = c("date", "stockID"))
+    tmpyy <- lubridate::year(coreETS$date)
+    yy <- rep(tmpyy, each = nrow(TSErr)/nrow(coreETS))
+    yy <- as.factor(yy)
+  }else{
+    yy <- lubridate::year(TSErr$date)
+    yy <- as.factor(yy)
+  }
+  TSErrlist <- split(TSErr, yy)
+  tmplist <- list()
+  for(i in 1:length(TSErrlist)){
+    tmp <- TSErrlist[[i]]
+    tmp$err <- fillna(tmp$err, method = "zero")
+    tmpdat <- plyr::ddply(.data = tmp, .variables = "No", plyr::summarise, mean = mean(err))
+    colnames(tmpdat) <- c("No","err")
+    tmpvec <- cumprod(tmpdat$err+1)
+    tmplist[[i]] <- data.frame('No'=tmpdat$No, 'err' = tmpvec)
+    tmplist[[i]]$year <- levels(yy)[i]
+  }
+  TSErr1 <- data.table::rbindlist(tmplist)
+  fig <- ggplot2::ggplot() +
+    ggplot2::geom_path(data = TSErr1, ggplot2::aes(x = No, y=err, colour = year), size = 1) +
+    ggplot2::geom_vline(xintercept = 0, color = 'red', linetype = 2)+
+    ggplot2::ylab("Accumulated Abnormal Return") + ggplot2::xlab("Date Series")
+  reslist <- list(fig)
+  if(everyyear == TRUE){
+    for( i in 1:length(TSErrlist)){
+      tmp.fig <- EE_Plot(TSErrlist[[i]]) + ggplot2::ggtitle()
+      reslist[[i+1]] <- tmp.fig
+    }
+    names(reslist) <- c("all years",levels(yy))
+  }else{
+    names(reslist) <- c("all years")
+  }
+  reslist$data <- TSErr1
+  return(reslist)
+}
+

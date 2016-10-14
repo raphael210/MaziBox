@@ -28,7 +28,7 @@ Get ETS object from JY database
 }
 \examples{
 # Fetching the ETS of investors' activities.
-ETS <- EE_GetETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
+ETS <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
                        date.column = "InfoPublDate", SheetName = "LC_InvestorRa", key.column = "SerialNb")
 
 }

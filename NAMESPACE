@@ -3,6 +3,7 @@
 export(EE_GetTSErr)
 export(EE_Plot)
 export(EE_getETSfromJY)
+export(EE_splityear)
 export(daily2monthly)
 export(fillna)
 export(ladderNAV)
