@@ -160,26 +160,26 @@ getmonthFac <- function(ts, db, window = NA){
 }
 
 #' Get simple sector
-#' 
+#'
 #' @param ts The object containing ts.
-#' @return Return the object with additional column secID. 
-#' @details simple sector only contains 6 categories, ES1:Big Cycle, ES2:Finance and Real estate, ES3:TMT, ES4:Consumpstions, ES5:Manufactoring, ES6:Others. 
+#' @return Return the object with additional column secID.
+#' @details simple sector only contains 6 categories, ES1:Big Cycle, ES2:Finance and Real estate, ES3:TMT, ES4:Consumpstions, ES5:Manufactoring, ES6:Others.
 #' @export
 gf.ezsec <- function(ts){
   ts.tmp <- subset(ts, select = c("date","stockID"))
   ts.tmp <- RFactorModel::gf.sector(ts.tmp, sectorAttr = defaultSectorAttr())
   seclist <- list()
-  # BigCycle 
+  # BigCycle
   seclist[[1]]<- c("ES33110000","ES33210000","ES33220000","ES33230000","ES33240000")
-  #FinRealEstate 
+  #FinRealEstate
   seclist[[2]]<- c("ES33480000","ES33490000","ES33430000")
   #TMT
   seclist[[3]]<- c("ES33710000","ES33720000","ES33730000","ES33270000")
-  #Comsump 
+  #Comsump
   seclist[[4]]<- c("ES33280000","ES33330000","ES33340000","ES33350000","ES33460000","ES33370000","ES33450000")
-  #Manufac 
+  #Manufac
   seclist[[5]]<- c("ES33360000","ES33630000","ES33640000","ES33610000","ES33620000","ES33650000")
-  #Others 
+  #Others
   seclist[[6]]<- c("ES33420000","ES33410000","ES33510000")
   for(ii in 1:length(seclist)){
     V2 <- paste("ES",ii,sep = "")
