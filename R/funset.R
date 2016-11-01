@@ -115,25 +115,83 @@ merge2tsf <- function(tsf1, tsf2, wgt = c(0.5,0.5)){
   return(tsf)
 }
 
-#' Transform daily data to montly data.
+#' Transform daily TSF to montly TSF.
 #'
-#' @param df The data frame containing the daily data.
-#' @param date The column of date.
-#' @param value The column of factorscore.
-#' @param std Logical values, whether normalize the factorscore.
-#' @param tradingday Logical values, whether apply trday.nearest function.
+#' @param ts The TS object.
+#' @param db The data frame containing the daily TSF data.
+#' @param window An interger indicating the time window to summarize. If NA, the time window will be the time interval between the rebalance dates.
 #' @return A TSF object.
 #' @export
-daily2monthly <- function(df, date, value, std = TRUE, tradingday = TRUE){
-  colnames(df)[colnames(df) == as.character(substitute(date))] = "date"
-  colnames(df)[colnames(df) == as.character(substitute(value))] = "score.tmp"
-  cols <- setdiff(colnames(df), "score.tmp")
-  df$date <- QUtility::cut.Date2(as.Date(df$date), breaks = "month")
-  df <- plyr::ddply(.data = df, .variables = cols, (summarise),
-              factorscore = sum(score.tmp))
-  if(tradingday == TRUE) {df$date <- QDataGet::trday.nearest(as.Date(df$date))}
-  if(std == TRUE) {df <- RFactorModel:::factor.std(df, factorStd = "norm")}
-  return(df)
+getmonthFac <- function(ts, db, window = NA){
+  QUtility::check.colnames(ts, c("date","stockID"))
+  if(is.na(window)){
+    v <- unique(ts$date)
+    v0 <- QDataGet::trday.nearby(v[1], by = 20)
+    v <- c(v0, v)
+    ind <- findInterval(db$date, v, left.open = TRUE)
+    db2 <- cbind(db, ind)
+    stocklist <- unique(ts$stockID)
+    db2 <- subset(db2, ind != 0)
+    db2 <- subset(db2, stockID %in% stocklist)
+    db2 <- dplyr::group_by(.data = db2, stockID, ind)
+    db2 <- dplyr::summarise(db2, newfac = sum(factorscore))
+    ind <- findInterval(TS$date, v, left.open = TRUE)
+    ts2 <- cbind(ts, ind)
+    re <- merge(ts2, db2, by = c("stockID","ind"), all.x = TRUE)
+    re2 <- data.frame("date" = re$date, "stockID" = as.character(re$stockID), "factorscore" = re$newfac)
+    return(re2)
+  }else{
+    stocklist <- unique(ts$stockID)
+    db <- subset(db, stockID %in% stocklist)
+    v1 <- unique(ts$date)
+    v2 <- QDataGet::trday.nearby(v1, by = window)
+    ind1 <- findInterval(db$date, v1, left.open = TRUE)
+    ind2 <- findInterval(db$date, v2, left.open = FALSE)
+    db2 <- cbind(db, ind1, ind2)
+    db2 <- dplyr::group_by(db2, stockID, ind1)
+    db2 <- dplyr::filter(db2, ind2 >= ind1 + 1)
+    db2 <- dplyr::summarise(db2, newfac = sum(factorscore))
+    ind1 <- findInterval(ts$date, v1, left.open = TRUE)
+    ts2 <- cbind(ts, ind1)
+    re <- merge(ts2,db2, by = c("stockID","ind1"), all.x = TRUE)
+    re2 <- data.frame("date" = re$date, "stockID" = as.character(re$stockID), "factorscore" = re$newfac)
+    return(re2)
+  }
+}
+
+#' Get simple sector
+#' 
+#' @param ts The object containing ts.
+#' @return Return the object with additional column secID. 
+#' @details simple sector only contains 6 categories, ES1:Big Cycle, ES2:Finance and Real estate, ES3:TMT, ES4:Consumpstions, ES5:Manufactoring, ES6:Others. 
+#' @export
+gf.ezsec <- function(ts){
+  ts.tmp <- subset(ts, select = c("date","stockID"))
+  ts.tmp <- RFactorModel::gf.sector(ts.tmp, sectorAttr = defaultSectorAttr())
+  seclist <- list()
+  # BigCycle 
+  seclist[[1]]<- c("ES33110000","ES33210000","ES33220000","ES33230000","ES33240000")
+  #FinRealEstate 
+  seclist[[2]]<- c("ES33480000","ES33490000","ES33430000")
+  #TMT
+  seclist[[3]]<- c("ES33710000","ES33720000","ES33730000","ES33270000")
+  #Comsump 
+  seclist[[4]]<- c("ES33280000","ES33330000","ES33340000","ES33350000","ES33460000","ES33370000","ES33450000")
+  #Manufac 
+  seclist[[5]]<- c("ES33360000","ES33630000","ES33640000","ES33610000","ES33620000","ES33650000")
+  #Others 
+  seclist[[6]]<- c("ES33420000","ES33410000","ES33510000")
+  for(ii in 1:length(seclist)){
+    V2 <- paste("ES",ii,sep = "")
+    seclist[[ii]] <- as.data.frame(seclist[[ii]])
+    seclist[[ii]] <- cbind(seclist[[ii]], V2)
+    names(seclist[[ii]]) <- c("sector","secID")
+  }
+  secdf <- data.table::rbindlist(seclist)
+  re <- merge(ts.tmp, secdf, by = c("sector"))
+  re2 <- subset(re, select = c("date","stockID","secID"))
+  re3 <- merge(ts,re2,by=c("date","stockID"))
+  return(re3)
 }
 
 #' Wrap up tsRemoteCallFunc with additional StockID column
