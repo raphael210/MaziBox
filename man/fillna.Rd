@@ -4,7 +4,7 @@
 \alias{fillna}
 \title{Fill in the NA.}
 \usage{
-fillna(vec, method = "mean")
+fillna(vec, method = "mean", trim = NA)
 }
 \arguments{
 \item{vec}{A vector.}

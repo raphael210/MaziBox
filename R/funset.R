@@ -1,3 +1,5 @@
+# ----- Others -----
+
 #' assets return demo dataset.
 #'
 #' A dataset containing stock index and bond index daily return data since 2009.
@@ -62,6 +64,23 @@ ladderNAV <- function(assetRtn,ruledf,rebalance=NULL){
   return(assetRtn)
 }
 
+#' Wrap up tsRemoteCallFunc with additional StockID column
+#'
+#' @param funchar A character string indicating which function to use in tsRemoteCallFunc.
+#' @param funpar A list for function parameters.
+#' @param syspar A list for system parameters, eg. StockID.
+#' @return A complicated list without unlist.
+#' @export
+wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
+  # funpar <- list(begT = rdate2ts(as.Date("2014-01-01")),
+  #                endT = rdate2ts(as.Date("2014-01-01")))
+  # syspar <- list(StockID = StockID)
+  tmp <- tsRemoteCallFunc(funchar = funchar, pars = funpar, syspars = syspar)
+  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID))
+  return(tmp)
+}
+
+# ----- MultiFac Model -----
 
 #' Organize and standardize the TSF object.
 #'
@@ -84,16 +103,36 @@ tidytsf <- function(tsf, reorder = NULL){
 #' @param method The method to fill in the NA.
 #' @return A vector without NA values.
 #' @export
-fillna <- function(vec, method = "mean"){
+fillna <- function(vec, method = "mean", trim = NA){
   match.arg(method, c("mean","median","zero"))
   if( method == "mean"){
-    vec[is.na(vec)] = mean(vec, na.rm = TRUE)
+    if(is.na(trim)){
+      vec[is.na(vec)] = mean(vec, na.rm = TRUE)
+    }else{
+      vec[is.na(vec)] = mean(vec, na.rm = TRUE, trim = trim)
+    }
   }else if( method == "median"){
     vec[is.na(vec)] = median(vec, na.rm = TRUE)
   }else if( method == "zero"){
     vec[is.na(vec)] = 0
   }
   return(vec)
+}
+
+#' Fill in the NA in TSF
+#'
+#' @param tsf A tsf object.
+#' @return tsf without NA in factor.
+#' @export
+fillfacNA <- function(tsf, trim = NA){
+  tsf2 <- MaziBox::gf.ezsec(tsf)
+  tsf2 <- dplyr::group_by(tsf2, date, secID)
+  if(is.na(trim)){
+    tsf2 <- dplyr::mutate(tsf2, factorscore = MaziBox::fillna(factorscore, method = "mean"))
+  }else{
+    tsf2 <- dplyr::mutate(tsf2, factorscore = MaziBox::fillna(factorscore, method = "mean", trim = trim))
+  }
+  return(tsf2)
 }
 
 #' Easy way to add up two TSF objects.
@@ -167,7 +206,7 @@ getmonthFac <- function(ts, db, window = NA){
 #' @export
 gf.ezsec <- function(ts){
   ts.tmp <- subset(ts, select = c("date","stockID"))
-  ts.tmp <- RFactorModel::gf.sector(ts.tmp, sectorAttr = defaultSectorAttr())
+  ts.tmp <- RFactorModel::gf.sector(ts.tmp, sectorAttr = QDataGet::defaultSectorAttr())
   seclist <- list()
   # BigCycle
   seclist[[1]]<- c("ES33110000","ES33210000","ES33220000","ES33230000","ES33240000")
@@ -194,22 +233,40 @@ gf.ezsec <- function(ts){
   return(re3)
 }
 
-#' Wrap up tsRemoteCallFunc with additional StockID column
+#' fitler stocks that have low NP forcast
 #'
-#' @param funchar A character string indicating which function to use in tsRemoteCallFunc.
-#' @param funpar A list for function parameters.
-#' @param syspar A list for system parameters, eg. StockID.
-#' @return A complicated list without unlist.
+#' @param ts A ts object.
+#' @return ts A ts object.
 #' @export
-wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
-  # funpar <- list(begT = rdate2ts(as.Date("2014-01-01")),
-  #                endT = rdate2ts(as.Date("2014-01-01")))
-  # syspar <- list(StockID = StockID)
-  tmp <- tsRemoteCallFunc(funchar = funchar, pars = funpar, syspars = syspar)
-  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID))
-  return(tmp)
+rms.low_F_NP <- function(ts){
+  tsf <- RFactorModel::gf.F_NP_chg(ts,span='w4')
+  tmp <- na.omit(tsf)
+  tmp <- tmp[tmp$factorscore<(-1),]
+  ts2 <- subset(tmp,select=c("date","stockID"))
+  re <- dplyr::setdiff(ts,ts2)
+  return(re)
 }
 
+#' filter stocks that are going to be unfrozen.
+#'
+#' @param ts A ts object.
+#' @return ts A ts object.
+#' @export
+rms.unfroz <- function(ts){
+  #begT <- as.Date("2010-01-31")
+  #endT <- as.Date("2016-05-31")
+  begT <- min(ts$date)
+  endT <- max(ts$date)
+  df_jy1 <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode", date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.column = "Proportion1")
+  df_jy2 <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode", date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.column = "SourceType")
+  df_jy <- merge(df_jy1,df_jy2,by=c("date","stockID"))
+  df_jy <- subset(df_jy, date>=begT & date<=endT & var.x>5 & var.y %in% c(24,25))
+  ETS <- subset(df_jy, select = c("date","stockID"))
+  re <- dplyr::setdiff(ts,ETS)
+  return(re)
+}
+
+# ----- Event Effect Research -----
 
 #' Expand ETS object into TS object with index
 #'
@@ -218,8 +275,8 @@ wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
 #' @param win2 Integer. The time window of days after the event date.
 #' @return A TS object with index.
 EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
-  QUtility::check.colnames(ETS, c('date', 'stockID'))
-  if(nrow(ETS) != 1L) {stop("this function can only be used on ETS of 1 observation.")}
+  # QUtility::check.colnames(ETS, c('date', 'stockID'))
+  # if(nrow(ETS) != 1L) {stop("this function can only be used on ETS of 1 observation.")}
   ETS$date <- QDataGet::trday.nearest(ETS$date, dir = -1)
   begT = QDataGet::trday.nearby(ETS$date, by = win1)
   endT = QDataGet::trday.nearby(ETS$date, by = -win2)
@@ -246,7 +303,9 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' EE_Plot(TSErr)
 EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date','stockID'))
-  temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
+  temp <- dplyr::rowwise(ETS)
+  temp <- dplyr::do(.data = temp, EE_ExpandETS_1row(., win1 = win1, win2 = win2))
+  # temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
   TargetTS <- subset(temp, select = c('No', 'date', 'stockID'))
   # write into lcdb, read back with left join with err
   TargetTS$date <- QUtility::rdate2int(TargetTS$date)
@@ -280,11 +339,14 @@ EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
 #' EE_Plot(TSErr)
 EE_Plot <- function(TSErr){
   TSErr$err <- fillna(TSErr$err, method = "zero")
-  tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
-  colnames(tmpdat) <- c("No","err")
+  tmpdat <- dplyr::group_by(TSErr, No)
+  tmpdat <- dplyr::summarise(tmpdat, mean = mean(err), std = sqrt(var(err)))
+  # tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
+  colnames(tmpdat) <- c("No","err","std")
   tmpvec <- cumprod(tmpdat$err+1)
-  TSErr1 <- data.frame('No'=tmpdat$No, 'err' = tmpvec)
+  TSErr1 <- data.frame('No'=tmpdat$No, 'err' = tmpvec, 'std' = tmpdat$std)
   p1 <-  ggplot2::ggplot()+
+    ggplot2::geom_ribbon(data = TSErr1, ggplot2::aes(x = No, ymin=err-std, ymax=err+std), fill="grey70")+
     ggplot2::geom_path(data = TSErr1, ggplot2::aes(x = No, y=err), size = 1) +
     ggplot2::geom_vline(xintercept = 0, color = 'red', linetype = 2)+
     ggplot2::ylab("Accumulated Abnormal Return")+ggplot2::xlab("Date Series")+
@@ -406,4 +468,7 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
   reslist$data <- TSErr1
   return(reslist)
 }
+
+
+
 
