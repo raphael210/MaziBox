@@ -12,7 +12,6 @@
 #' }
 "rtndemo"
 
-
 #' ladder position port function
 #'
 #' @param assetRtn a data frame for stock and bond return.
@@ -239,7 +238,11 @@ gf.ezsec <- function(ts){
 #' @return ts A ts object.
 #' @export
 rms.low_F_NP <- function(ts){
-  tsf <- RFactorModel::gf.F_NP_chg(ts,span='w4')
+  # begT <- as.Date("2010-01-31")
+  # endT <- as.Date("2016-05-31")
+  # RebDates <- getRebDates(begT,endT)
+  # ts <- getTS(RebDates,"EI000985")
+  tsf <- QFactorGet::gf.F_NP_chg(ts,span='w4')
   tmp <- na.omit(tsf)
   tmp <- tmp[tmp$factorscore<(-1),]
   ts2 <- subset(tmp,select=c("date","stockID"))
@@ -262,8 +265,33 @@ rms.unfroz <- function(ts){
   df_jy <- merge(df_jy1,df_jy2,by=c("date","stockID"))
   df_jy <- subset(df_jy, date>=begT & date<=endT & var.x>5 & var.y %in% c(24,25))
   ETS <- subset(df_jy, select = c("date","stockID"))
-  re <- dplyr::setdiff(ts,ETS)
+  temp <- dplyr::rowwise(ETS)
+  temp <- dplyr::do(.data = temp, MaziBox:::EE_ExpandETS_1row(., win1 = 25, win2 = 1))
+  ETS2 <- subset(temp, select = c("date","stockID"))
+  ETS2$stockID <- as.character(ETS2$stockID)
+  re <- dplyr::setdiff(ts,ETS2)
   return(re)
+}
+
+#' Get tradingday through data frame.
+#' 
+#' @param T.df A data frame with two columns: begT, endT.
+#' @return A data frame with only one column: date.
+trday.get.df <- function(T.df){    
+  QUtility::check.colnames(T.df, c("begT","endT"))
+  begT.min <- min(T.df$begT)
+  endT.max <- max(T.df$endT)
+  # get the market trading days
+  begTT <- max(begT.min,as.Date("1990-12-19"))
+  begTT <- QUtility::rdate2int(begTT)
+  endTT <- QUtility::rdate2int(endT.max)
+  qr <- paste("select TradingDate from QT_TradingDay where SecuMarket=83 and IfTradingDay=1 and TradingDate between ",begTT,"and",endTT)    
+  trday <- QDataGet::queryAndClose.dbi(db.local(),qr)
+  trday$TradingDate <- QUtility::intdate2r(trday$TradingDate)
+  T.df <- dplyr::rowwise(T.df)
+  temp <- dplyr::do(T.df, subset(trday, TradingDate >= .$begT  &  TradingDate <= .$endT))
+  colnames(temp) <- "date"
+  return(temp)
 }
 
 # ----- Event Effect Research -----
@@ -278,13 +306,46 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
   # QUtility::check.colnames(ETS, c('date', 'stockID'))
   # if(nrow(ETS) != 1L) {stop("this function can only be used on ETS of 1 observation.")}
   ETS$date <- QDataGet::trday.nearest(ETS$date, dir = -1)
-  begT = QDataGet::trday.nearby(ETS$date, by = win1)
-  endT = QDataGet::trday.nearby(ETS$date, by = -win2)
-  res <- QDataGet::trday.get(begT = begT, endT = endT)
-  ID <- rep(ETS$stockID, length(res))
-  index <- c((-win1):(-1), 0, 1:win2)
+  if(win1 > 0){
+    begT = QDataGet::trday.nearby(ETS$date, by = win1)
+    endT = QDataGet::trday.nearby(ETS$date, by = -win2)
+    res <- QDataGet::trday.get(begT = begT, endT = endT)
+    ID <- rep(ETS$stockID, length(res))
+    index <- c((-win1):(-1), 0, 1:win2)
+  }else{
+    endT = QDataGet::trday.nearby(ETS$date, by = -win2)
+    res <- QDataGet::trday.get(begT = ETS$date, endT = endT)
+    ID <- rep(ETS$stockID, length(res))
+    index <- c(0,1:win2)
+  }
   finalres <- data.frame('No' = index,'date' = res, 'stockID' = ID)
-  return(finalres)
+    return(finalres)
+}
+
+#' Expand ETS object into TS object with index. Multi-row version.
+#'
+#' @param ets A event TS object which includes the event date and the corresponding stock.
+#' @param win1 Integer. The time window of days before the event date.
+#' @param win2 Integer. The time window of days after the event date.
+#' @return A TS object with index.
+EE_ExpandETS <- function(ets, win1, win2){
+  QUtility::check.colnames(ets, c("date","stockID"))
+  len <- win1+1+win2
+  stockID.col <- rep(ets$stockID, each = len)
+  date.col <- QDataGet::trday.nearest(ets$date, dir = -1)
+  begT.col <- QDataGet::trday.nearby(date.col, by = win1)
+  endT.col <- QDataGet::trday.nearby(date.col, by = -win2)
+  T.df <- data.frame("begT" = begT.col, "endT" = endT.col)
+  date.col <- trday.get.df(T.df)
+  if(win1 > 0){
+    b <- c((-win1:-1),0:win2)
+    No <- rep(b, nrow(ets))
+  }else{
+    b <- 0:win2
+    No <- rep(b, nrow(ets))
+  }
+  res <- data.frame("No" = No, "date" = date.col$date, "stockID" = stockID.col)
+  return(res)
 }
 
 #' Plug in ETS and return a TS object with Err and index.
@@ -303,10 +364,11 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' EE_Plot(TSErr)
 EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date','stockID'))
-  temp <- dplyr::rowwise(ETS)
-  temp <- dplyr::do(.data = temp, EE_ExpandETS_1row(., win1 = win1, win2 = win2))
+  TargetTS <- EE_ExpandETS(ETS, win1 = win1, win2 = win2)
+  # temp <- dplyr::rowwise(ETS)
+  # temp <- dplyr::do(.data = temp, EE_ExpandETS_1row(., win1 = win1, win2 = win2))
   # temp <- plyr::adply(.data = ETS, .margins = 1, .fun = function(x) EE_ExpandETS_1row(x, win1 = win1, win2 = win2))
-  TargetTS <- subset(temp, select = c('No', 'date', 'stockID'))
+  # TargetTS <- subset(temp, select = c('No', 'date', 'stockID'))
   # write into lcdb, read back with left join with err
   TargetTS$date <- QUtility::rdate2int(TargetTS$date)
   con <- QDataGet::db.local()
@@ -359,9 +421,6 @@ EE_Plot <- function(TSErr){
   re <- QUtility::multiplot(plotlist = list(p1,p2), ncol=1)
   return(re)
 }
-
-
-
 
 #' Get ETS object from JY database
 #'
@@ -419,8 +478,6 @@ EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCod
   return(temp)
 }
 
-
-
 #' Split and return the plots of each year
 #'
 #' @param TSErr The TSErr object.
@@ -468,7 +525,3 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
   reslist$data <- TSErr1
   return(reslist)
 }
-
-
-
-
