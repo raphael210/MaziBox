@@ -4,32 +4,37 @@
 \alias{EE_getETSfromJY}
 \title{Get ETS object from JY database}
 \usage{
-EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
-  date.column = "InfoPublDate", SheetName, key.column, key.decode = NULL)
+EE_getETSfromJY(SheetName, key.df, extra.condition = NULL,
+  stock.column = "InnerCode", stock.decode = "InnerCode",
+  date.column = "InfoPublDate")
 }
 \arguments{
-\item{stock.column}{The column name string of the stockID in the data.}
-
-\item{stock.decode}{The column name string that is used to decode the stockID.}
-
-\item{date.column}{The column name string of the date in the data.}
-
 \item{SheetName}{The sheet name string of the data.}
 
-\item{key.column}{The column name string of the key variable in the data.}
+\item{key.df}{The data frame containing three columns: key, decode, isSE(whether the variable is in the SE sheet, if it's, the value is the TypeCode value).}
 
-\item{key.decode}{The decoding number that is used to interpret the key.column.}
+\item{extra.condition}{The extra qr string could be add to the SQL.}
+
+\item{stock.column}{The column name which indicating the stockID in the sheet}
+
+\item{stock.decode}{The column name in decode sheet which is used to decode the stockID.}
+
+\item{date.column}{The column name string of the date in the data.}
 }
 \value{
-A dataframe with date, stockID and var(key column).
+A dataframe with date, stockID and vars.
 }
 \description{
 Get ETS object from JY database
 }
 \examples{
 # Fetching the ETS of investors' activities.
-ETS <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
-                       date.column = "InfoPublDate", SheetName = "LC_InvestorRa", key.column = "SerialNb")
-
+key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
+tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
+# Fetching the ETS of shares transfering.
+key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"), 
+                    "decode" = c(1040, 1202, NA, 1096, 1096),
+                    "isSE" = c(NA,NA,NA,1,2))
+tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
 }
 

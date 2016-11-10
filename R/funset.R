@@ -424,57 +424,75 @@ EE_Plot <- function(TSErr){
 
 #' Get ETS object from JY database
 #'
-#' @param stock.column The column name string of the stockID in the data.
-#' @param stock.decode The column name string that is used to decode the stockID.
-#' @param date.column The column name string of the date in the data.
 #' @param SheetName The sheet name string of the data.
-#' @param key.column The column name string of the key variable in the data.
-#' @param key.decode The decoding number that is used to interpret the key.column.
-#' @return A dataframe with date, stockID and var(key column).
+#' @param key.df The data frame containing three columns: key, decode, isSE(whether the variable is in the SE sheet, if it's, the value is the TypeCode value).
+#' @param extra.condition The extra qr string could be add to the SQL.
+#' @param stock.column The column name which indicating the stockID in the sheet
+#' @param stock.decode The column name in decode sheet which is used to decode the stockID.
+#' @param date.column The column name string of the date in the data.
+#' @return A dataframe with date, stockID and vars.
 #' @export
 #' @examples
 #' # Fetching the ETS of investors' activities.
-#' ETS <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode",
-#'                        date.column = "InfoPublDate", SheetName = "LC_InvestorRa", key.column = "SerialNb")
-#'
-EE_getETSfromJY <- function(stock.column = "InnerCode", stock.decode = "InnerCode",
-                            date.column = "InfoPublDate",
-                            SheetName, key.column, key.decode = NULL){
-  if(is.null(key.decode)){
-    qr <- paste(
-      "select  convert(varchar(8),target.",date.column,",112) date,
-      'EQ'+s.SecuCode stockID,
-      target.",key.column," var
-      from JYDB.dbo.",SheetName," target,
-      JYDB.dbo.SecuMain s
-      where target.",stock.column," = s.",stock.decode,"
-      and s.SecuCategory in (1,2)"
-    )
-  }else{
-    qr <- paste(
-      "select  convert(varchar(8),target.",date.column,",112) date,
-      'EQ'+s.SecuCode stockID,
-      decode.MS var
-      from JYDB.dbo.",SheetName," target,
-      JYDB.dbo.SecuMain s,
-      JYDB.dbo.CT_SystemConst decode
-      where target.",stock.column," = s.",stock.decode,"
-      and s.SecuCategory in (1,2)
-      and target.",key.column," = decode.DM
-      and decode.LB = ",key.decode
-    )
-  }
-  temp <- RODBC::sqlQuery(QDataGet::db.jy(), qr, errors = FALSE)
-  if(is.integer(temp)){
-    if(temp == -1L){
-      temp <- RODBC::sqlQuery(db.jy(), qr)
-      warning("Getquery step failed.")
-      return(temp)
+#' key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
+#' tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
+#' # Fetching the ETS of shares transfering.
+#' key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"), 
+#'                     "decode" = c(1040, 1202, NA, 1096, 1096),
+#'                     "isSE" = c(NA,NA,NA,1,2))
+#' tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
+EE_getETSfromJY <- function(SheetName, key.df, 
+                            extra.condition = NULL,
+                            stock.column = "InnerCode", 
+                            stock.decode = "InnerCode",
+                            date.column = "InfoPublDate"){ 
+  nkey <- nrow(key.df)
+  varqr <- " "
+  sheetqr <- " "
+  decodeqr <- " "
+  namevec <- c()
+  for( i in 1:nkey){
+    if(is.na(key.df$decode[i])){
+      varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i,sep = "")
+      sheetqr <- paste(sheetqr, "", sep = "")
+      decodeqr <- paste(decodeqr, "", sep = "")
+      namevec <- c(namevec, as.character(key.df$key[i]))
+    }else{
+      if(is.na(key.df$isSE[i])){
+        varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i, sep="")
+        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
+        decodeqr <- paste(decodeqr," ","and target.",key.df$key[i]," = decode",i,".DM", sep ="")
+        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
+      }else{
+        varqr <- paste(varqr,","," targetse",i,".Code var",i, sep="")
+        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.",SheetName,"_SE targetse",i, sep="")
+        decodeqr <- paste(decodeqr," ","and target.ID=targetse",i,".ID", sep="")
+        decodeqr <- paste(decodeqr," ","and targetse",i,".TypeCode=",key.df$isSE[i], sep="")
+        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
+        decodeqr <- paste(decodeqr," ","and targetse",i,".Code=decode",i,".DM", sep="")
+      }
+      namevec <- c(namevec, as.character(key.df$key[i]), paste(key.df$key[i],"_decode", sep=""))
     }
   }
-  temp$date <- QUtility::intdate2r(temp$date)
-  # double check
-  QUtility::check.colnames(temp, c("date","stockID","var"))
+  qr <- paste(
+    "select convert(varchar(8),target.",date.column,",112) date,
+    'EQ'+s.SecuCode stockID",varqr,"
+    from JYDB.dbo.",SheetName," target,
+    JYDB.dbo.SecuMain s", sheetqr,"
+    where target.",stock.column,"=s.",stock.decode,"
+    and s.SecuCategory in (1,2)",decodeqr, sep = ""
+  )
+  if(!is.null(extra.condition)){
+    qr <- paste(qr, extra.condition, sep = " and ")
+  }
+  temp <- QDataGet::queryAndClose.odbc(QDataGet::db.jy(), qr)
+  if(!is.null(nrow(temp))){
+    temp$date <- QUtility::intdate2r(temp$date)
+    colnames(temp) <- c("date","stockID", namevec)
+  }
   return(temp)
 }
 
