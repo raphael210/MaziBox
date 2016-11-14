@@ -19,6 +19,7 @@
 #' @param ruledf a data frame for position rule.
 #' @param rebalance rebalance frequency, default value is NULL.
 #' @return a data frame, containing return,postion,nav.
+#' @author han.qian
 #' @export
 #' @examples
 #' assetRtn <- rtndemo
