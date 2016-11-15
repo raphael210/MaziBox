@@ -32,7 +32,7 @@ Get ETS object from JY database
 key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
 tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
 # Fetching the ETS of shares transfering.
-key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"), 
+key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"),
                     "decode" = c(1040, 1202, NA, 1096, 1096),
                     "isSE" = c(NA,NA,NA,1,2))
 tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)

@@ -4,13 +4,13 @@
 \alias{rms.unfroz}
 \title{filter stocks that are going to be unfrozen.}
 \usage{
-rms.unfroz(ts)
+rms.unfroz(tsobj)
 }
 \arguments{
-\item{ts}{A ts object.}
+\item{tsobj}{An object contains ts.}
 }
 \value{
-ts A ts object.
+tsobj.
 }
 \description{
 filter stocks that are going to be unfrozen.

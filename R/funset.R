@@ -164,16 +164,16 @@ getmonthFac <- function(ts, db, window = NA){
   QUtility::check.colnames(ts, c("date","stockID"))
   if(is.na(window)){
     v <- unique(ts$date)
+    stocklist <- unique(ts$stockID)
     v0 <- QDataGet::trday.nearby(v[1], by = 20)
     v <- c(v0, v)
     ind <- findInterval(db$date, v, left.open = TRUE)
     db2 <- cbind(db, ind)
-    stocklist <- unique(ts$stockID)
     db2 <- subset(db2, ind != 0)
     db2 <- subset(db2, stockID %in% stocklist)
     db2 <- dplyr::group_by(.data = db2, stockID, ind)
     db2 <- dplyr::summarise(db2, newfac = sum(factorscore))
-    ind <- findInterval(TS$date, v, left.open = TRUE)
+    ind <- findInterval(ts$date, v, left.open = TRUE)
     ts2 <- cbind(ts, ind)
     re <- merge(ts2, db2, by = c("stockID","ind"), all.x = TRUE)
     re2 <- data.frame("date" = re$date, "stockID" = as.character(re$stockID), "factorscore" = re$newfac)
@@ -234,50 +234,54 @@ gf.ezsec <- function(ts){
 
 #' fitler stocks that have low NP forcast
 #'
-#' @param ts A ts object.
-#' @return ts A ts object.
+#' @param tsobj An object contains ts.
+#' @return tsobj.
 #' @export
-rms.low_F_NP <- function(ts){
+rms.low_F_NP <- function(tsobj){
   # begT <- as.Date("2010-01-31")
   # endT <- as.Date("2016-05-31")
   # RebDates <- getRebDates(begT,endT)
   # ts <- getTS(RebDates,"EI000985")
+  ts <- tsobj[,c("date","stockID")]
   tsf <- QFactorGet::gf.F_NP_chg(ts,span='w4')
   tmp <- na.omit(tsf)
   tmp <- tmp[tmp$factorscore<(-1),]
   ts2 <- subset(tmp,select=c("date","stockID"))
   re <- dplyr::setdiff(ts,ts2)
-  return(re)
+  re2 <- merge(re, tsobj, by=c("date","stockID"), all.x = TRUE)
+  return(re2)
 }
 
 #' filter stocks that are going to be unfrozen.
 #'
-#' @param ts A ts object.
-#' @return ts A ts object.
+#' @param tsobj An object contains ts.
+#' @return tsobj.
 #' @export
-rms.unfroz <- function(ts){
+rms.unfroz <- function(tsobj){
   #begT <- as.Date("2010-01-31")
   #endT <- as.Date("2016-05-31")
+  ts <- tsobj[,c("date","stockID")]
   begT <- min(ts$date)
   endT <- max(ts$date)
-  df_jy1 <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode", date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.column = "Proportion1")
-  df_jy2 <- EE_getETSfromJY(stock.column = "InnerCode", stock.decode = "InnerCode", date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.column = "SourceType")
-  df_jy <- merge(df_jy1,df_jy2,by=c("date","stockID"))
-  df_jy <- subset(df_jy, date>=begT & date<=endT & var.x>5 & var.y %in% c(24,25))
+  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("key"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
+  df_jy <- subset(df_jy, date>=begT & date<=endT & Proportion1>5 & SourceType %in% c(24,25))
   ETS <- subset(df_jy, select = c("date","stockID"))
-  temp <- dplyr::rowwise(ETS)
-  temp <- dplyr::do(.data = temp, MaziBox:::EE_ExpandETS_1row(., win1 = 25, win2 = 1))
-  ETS2 <- subset(temp, select = c("date","stockID"))
-  ETS2$stockID <- as.character(ETS2$stockID)
-  re <- dplyr::setdiff(ts,ETS2)
-  return(re)
+  ETS2 <- EE_ExpandETS(ETS, win1 = 25, win2 = 1)
+  # temp <- dplyr::rowwise(ETS)
+  # temp <- dplyr::do(.data = temp, MaziBox:::EE_ExpandETS_1row(., win1 = 25, win2 = 1))
+  TS2 <- subset(ETS2, select = c("date","stockID"))
+  TS2$stockID <- as.character(TS2$stockID)
+  re <- dplyr::setdiff(ts,TS2)
+  re2 <- merge(re, tsobj, by = c("date","stockID"), all.x = TRUE)
+  return(re2)
 }
 
 #' Get tradingday through data frame.
-#' 
+#'
 #' @param T.df A data frame with two columns: begT, endT.
 #' @return A data frame with only one column: date.
-trday.get.df <- function(T.df){    
+#' @export
+trday.get.df <- function(T.df){
   QUtility::check.colnames(T.df, c("begT","endT"))
   begT.min <- min(T.df$begT)
   endT.max <- max(T.df$endT)
@@ -285,8 +289,8 @@ trday.get.df <- function(T.df){
   begTT <- max(begT.min,as.Date("1990-12-19"))
   begTT <- QUtility::rdate2int(begTT)
   endTT <- QUtility::rdate2int(endT.max)
-  qr <- paste("select TradingDate from QT_TradingDay where SecuMarket=83 and IfTradingDay=1 and TradingDate between ",begTT,"and",endTT)    
-  trday <- QDataGet::queryAndClose.dbi(db.local(),qr)
+  qr <- paste("select TradingDate from QT_TradingDay where SecuMarket=83 and IfTradingDay=1 and TradingDate between ",begTT,"and",endTT)
+  trday <- QDataGet::queryAndClose.dbi(QDataGet::db.local(),qr)
   trday$TradingDate <- QUtility::intdate2r(trday$TradingDate)
   T.df <- dplyr::rowwise(T.df)
   temp <- dplyr::do(T.df, subset(trday, TradingDate >= .$begT  &  TradingDate <= .$endT))
@@ -328,6 +332,7 @@ EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
 #' @param win1 Integer. The time window of days before the event date.
 #' @param win2 Integer. The time window of days after the event date.
 #' @return A TS object with index.
+#' @export
 EE_ExpandETS <- function(ets, win1, win2){
   QUtility::check.colnames(ets, c("date","stockID"))
   len <- win1+1+win2
@@ -437,15 +442,15 @@ EE_Plot <- function(TSErr){
 #' key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
 #' tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
 #' # Fetching the ETS of shares transfering.
-#' key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"), 
+#' key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"),
 #'                     "decode" = c(1040, 1202, NA, 1096, 1096),
 #'                     "isSE" = c(NA,NA,NA,1,2))
 #' tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
-EE_getETSfromJY <- function(SheetName, key.df, 
+EE_getETSfromJY <- function(SheetName, key.df,
                             extra.condition = NULL,
-                            stock.column = "InnerCode", 
+                            stock.column = "InnerCode",
                             stock.decode = "InnerCode",
-                            date.column = "InfoPublDate"){ 
+                            date.column = "InfoPublDate"){
   nkey <- nrow(key.df)
   varqr <- " "
   sheetqr <- " "
@@ -542,4 +547,100 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
   }
   reslist$data <- TSErr1
   return(reslist)
+}
+
+# ----- LCDB.build & update -----
+
+#' lcdb.build.EE_LeaderStockAlter
+#'
+#' @examples
+#' library(WindR)
+#' lcdb.build.EE_LeaderStockAlter()
+#' @export
+lcdb.build.EE_LeaderStockAlter <- function(){
+  suppressMessages(WindR::w.start(showmenu = FALSE))
+  res <- data.frame()
+  s.date <- c()
+  e.date <- c()
+  for(ii in 1990:2015){
+    s.date <- c(s.date, paste(ii,"-01-01", sep=""))
+    e.date <- c(e.date, paste(ii,"-12-31", sep=""))
+  }
+  len <- length(s.date)
+  for(ii in 1:len){
+    w_wset_data <- WindR::w.wset('majorholderdealrecord',startdate=s.date[ii],enddate=e.date[ii],'sectorid=a001010100000000;type=announcedate')
+    tmp <- w_wset_data$Data
+    if(w_wset_data$ErrorCode != 0) return(tmp)
+    if(nrow(tmp) == 0) next
+    tmp <- tmp[, setdiff(colnames(tmp),"CODE")]
+    tmp <- QUtility::renameCol(tmp,"wind_code","stockID")
+    tmp$stockID <- QDataGet::stockID2stockID(tmp$stockID, from = "wind", to = "local")
+    tmp$announcement_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$announcement_date, asdate = T))
+    tmp$change_start_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_start_date, asdate = T))
+    tmp$change_end_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_end_date, asdate = T))
+    res = rbind(res,tmp)
+  }
+  res <- dplyr::arrange(res, announcement_date, stockID)
+  con <- QDataGet::db.local()
+  RSQLite::dbWriteTable(con,'EE_LeaderStockAlter',res,overwrite=T,append=F,row.names=F)
+  RSQLite::dbDisconnect(con)
+  return('Done!')
+}
+
+#' lcdb.update.EE_LeaderStockAlter
+#'
+#' @examples
+#' library(WindR)
+#' lcdb.update.EE_LeaderStockAlter()
+#' @export
+lcdb.update.EE_LeaderStockAlter <- function(){
+  con <- QDataGet::db.local()
+  re <- DBI::dbReadTable(con,'EE_LeaderStockAlter')
+  begT <- QUtility::intdate2r(max(re$announcement_date))
+  begT <- begT+1
+  endT <- Sys.Date()
+  oldyy <- lubridate::year(begT)
+  newyy <- lubridate::year(endT)
+  while(newyy > oldyy){
+    WindR::w.start(showmenu = F)
+    endT.tmp <- as.Date(paste(oldyy,"-12-31",sep=""))
+    w_wset_data<- WindR::w.wset('majorholderdealrecord',startdate=begT,enddate=endT.tmp,'sectorid=a001010100000000;type=announcedate')
+    tmp <- w_wset_data$Data
+    if(w_wset_data$ErrorCode != 0) return(tmp)
+    if(nrow(tmp) != 0) {
+      tmp <- tmp[, setdiff(colnames(tmp),"CODE")]
+      tmp <- QUtility::renameCol(tmp,"wind_code","stockID")
+      tmp$stockID <- QDataGet::stockID2stockID(tmp$stockID, from = "wind", to = "local")
+      tmp$announcement_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$announcement_date, asdate = T))
+      tmp$change_start_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_start_date, asdate = T))
+      tmp$change_end_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_end_date, asdate = T))
+      tmp <- dplyr::arrange(tmp, announcement_date, stockID)
+      DBI::dbWriteTable(con, "EE_LeaderStockAlter", tmp, overwrite=F, append=T, row.names=F)
+      DBI::dbDisconnect(con)
+    }
+    begT = as.Date(paste(oldyy+1,"-01-01",sep=""))
+    oldyy <- lubridate::year(begT)
+  }
+  if(begT >= endT){
+    return('Done!')
+  }else{
+    WindR::w.start(showmenu = F)
+    w_wset_data<- WindR::w.wset('majorholderdealrecord',startdate=begT,enddate=endT,'sectorid=a001010100000000;type=announcedate')
+    tmp <- w_wset_data$Data
+    if(w_wset_data$ErrorCode != 0) return(tmp)
+    if(nrow(tmp) == 0) {
+      return('Done!')
+    }else{
+      tmp <- tmp[, setdiff(colnames(tmp),"CODE")]
+      tmp <- QUtility::renameCol(tmp,"wind_code","stockID")
+      tmp$stockID <- QDataGet::stockID2stockID(tmp$stockID, from = "wind", to = "local")
+      tmp$announcement_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$announcement_date, asdate = T))
+      tmp$change_start_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_start_date, asdate = T))
+      tmp$change_end_date <- QUtility::rdate2int(WindR::w.asDateTime(tmp$change_end_date, asdate = T))
+      tmp <- dplyr::arrange(tmp, announcement_date, stockID)
+      DBI::dbWriteTable(con, "EE_LeaderStockAlter", tmp, overwrite=F, append=T, row.names=F)
+      DBI::dbDisconnect(con)
+      return('Done!')
+    }
+  }  
 }
