@@ -123,8 +123,8 @@ fillna <- function(vec, method = "mean", trim = NA){
 #' @param tsf A tsf object.
 #' @return tsf without NA in factor.
 #' @export
-fillfacNA <- function(tsf, trim = NA){
-  tsf2 <- MaziBox::gf.ezsec(tsf)
+fillfacna <- function(tsf, trim = NA){
+  tsf2 <- gf.ezsec(tsf)
   tsf2 <- dplyr::group_by(tsf2, date, secID)
   if(is.na(trim)){
     tsf2 <- dplyr::mutate(tsf2, factorscore = MaziBox::fillna(factorscore, method = "mean"))
@@ -232,50 +232,6 @@ gf.ezsec <- function(ts){
   return(re3)
 }
 
-#' fitler stocks that have low NP forcast
-#'
-#' @param tsobj An object contains ts.
-#' @return tsobj.
-#' @export
-rms.low_F_NP <- function(tsobj){
-  # begT <- as.Date("2010-01-31")
-  # endT <- as.Date("2016-05-31")
-  # RebDates <- getRebDates(begT,endT)
-  # ts <- getTS(RebDates,"EI000985")
-  ts <- tsobj[,c("date","stockID")]
-  tsf <- QFactorGet::gf.F_NP_chg(ts,span='w4')
-  tmp <- na.omit(tsf)
-  tmp <- tmp[tmp$factorscore<(-1),]
-  ts2 <- subset(tmp,select=c("date","stockID"))
-  re <- dplyr::setdiff(ts,ts2)
-  re2 <- merge(re, tsobj, by=c("date","stockID"), all.x = TRUE)
-  return(re2)
-}
-
-#' filter stocks that are going to be unfrozen.
-#'
-#' @param tsobj An object contains ts.
-#' @return tsobj.
-#' @export
-rms.unfroz <- function(tsobj){
-  #begT <- as.Date("2010-01-31")
-  #endT <- as.Date("2016-05-31")
-  ts <- tsobj[,c("date","stockID")]
-  begT <- min(ts$date)
-  endT <- max(ts$date)
-  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("key"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
-  df_jy <- subset(df_jy, date>=begT & date<=endT & Proportion1>5 & SourceType %in% c(24,25))
-  ETS <- subset(df_jy, select = c("date","stockID"))
-  ETS2 <- EE_ExpandETS(ETS, win1 = 25, win2 = 1)
-  # temp <- dplyr::rowwise(ETS)
-  # temp <- dplyr::do(.data = temp, MaziBox:::EE_ExpandETS_1row(., win1 = 25, win2 = 1))
-  TS2 <- subset(ETS2, select = c("date","stockID"))
-  TS2$stockID <- as.character(TS2$stockID)
-  re <- dplyr::setdiff(ts,TS2)
-  re2 <- merge(re, tsobj, by = c("date","stockID"), all.x = TRUE)
-  return(re2)
-}
-
 #' Get tradingday through data frame.
 #'
 #' @param T.df A data frame with two columns: begT, endT.
@@ -299,6 +255,96 @@ trday.get.df <- function(T.df){
 }
 
 # ----- Event Effect Research -----
+
+#' build key for key data frame
+#'
+#' @param key The column name.
+#' @param decode The decoding number if the values have to be interpreted by the CT_SystemConst sheet.
+#' @param isSE NA if the variable is not in the sub-sheet. Otherwise, look up the SE sub-sheet and fill in the TypeCode of the variable.
+#' @return A single row in the data frame format. Rbind the keys to one single data frame and apply it in the the EE_getETSfromJY function.
+#' @export
+buildkey <- function(kkey,decode,isSE){
+  re <- data.frame(kkey = kkey)
+  re$decode <- ifelse(missing(decode),NA,decode)
+  re$isSE <- ifelse(missing(isSE),NA,isSE)
+  return(re)
+}
+
+#' Get ETS object from JY database
+#'
+#' @param SheetName The sheet name string of the data.
+#' @param key.df The key data frame.
+#' @param extra.condition The extra qr string could be add to the SQL.
+#' @param stock.column The column name which indicating the stockID in the sheet
+#' @param stock.decode The column name in decode sheet which is used to decode the stockID.
+#' @param date.column The column name string of the date in the data.
+#' @return A dataframe with date, stockID and vars.
+#' @export
+#' @examples
+#' # Fetching the ETS of investors' activities.
+#' key.df <- rbind(buildkey("SerialNb"))
+#' tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
+#' # Fetching the ETS of shares transfering.
+#' key.df <- rbind(buildkey("TranShareType",1040),
+#'                 buildkey("TranMode",1202),
+#'                 buildkey("IfSuspended"),
+#'                 buildkey("TransfererEcoNature",1096,1),
+#'                 buildkey("ReceiverEcoNature",1096,2))
+#' tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
+EE_getETSfromJY <- function(SheetName, key.df,
+                            extra.condition = NULL,
+                            stock.column = "InnerCode",
+                            stock.decode = "InnerCode",
+                            date.column = "InfoPublDate"){
+  nkey <- nrow(key.df)
+  varqr <- " "
+  sheetqr <- " "
+  decodeqr <- " "
+  namevec <- c()
+  for( i in 1:nkey){
+    if(is.na(key.df$decode[i])){
+      varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i,sep = "")
+      sheetqr <- paste(sheetqr, "", sep = "")
+      decodeqr <- paste(decodeqr, "", sep = "")
+      namevec <- c(namevec, as.character(key.df$key[i]))
+    }else{
+      if(is.na(key.df$isSE[i])){
+        varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i, sep="")
+        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
+        decodeqr <- paste(decodeqr," ","and target.",key.df$key[i]," = decode",i,".DM", sep ="")
+        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
+      }else{
+        varqr <- paste(varqr,","," targetse",i,".Code var",i, sep="")
+        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
+        sheetqr <- paste(sheetqr,","," JYDB.dbo.",SheetName,"_SE targetse",i, sep="")
+        decodeqr <- paste(decodeqr," ","and target.ID=targetse",i,".ID", sep="")
+        decodeqr <- paste(decodeqr," ","and targetse",i,".TypeCode=",key.df$isSE[i], sep="")
+        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
+        decodeqr <- paste(decodeqr," ","and targetse",i,".Code=decode",i,".DM", sep="")
+      }
+      namevec <- c(namevec, as.character(key.df$key[i]), paste(key.df$key[i],"_decode", sep=""))
+    }
+  }
+  qr <- paste(
+    "select convert(varchar(8),target.",date.column,",112) date,
+    'EQ'+s.SecuCode stockID",varqr,"
+    from JYDB.dbo.",SheetName," target,
+    JYDB.dbo.SecuMain s", sheetqr,"
+    where target.",stock.column,"=s.",stock.decode,"
+    and s.SecuCategory in (1,2)",decodeqr, sep = ""
+  )
+  if(!is.null(extra.condition)){
+    qr <- paste(qr, extra.condition, sep = " and ")
+  }
+  temp <- QDataGet::queryAndClose.odbc(QDataGet::db.jy(), qr)
+  if(!is.null(nrow(temp))){
+    temp$date <- QUtility::intdate2r(temp$date)
+    colnames(temp) <- c("date","stockID", namevec)
+  }
+  return(temp)
+}
 
 #' Expand ETS object into TS object with index
 #'
@@ -427,80 +473,6 @@ EE_Plot <- function(TSErr){
   return(re)
 }
 
-#' Get ETS object from JY database
-#'
-#' @param SheetName The sheet name string of the data.
-#' @param key.df The data frame containing three columns: key, decode, isSE(whether the variable is in the SE sheet, if it's, the value is the TypeCode value).
-#' @param extra.condition The extra qr string could be add to the SQL.
-#' @param stock.column The column name which indicating the stockID in the sheet
-#' @param stock.decode The column name in decode sheet which is used to decode the stockID.
-#' @param date.column The column name string of the date in the data.
-#' @return A dataframe with date, stockID and vars.
-#' @export
-#' @examples
-#' # Fetching the ETS of investors' activities.
-#' key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
-#' tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
-#' # Fetching the ETS of shares transfering.
-#' key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"),
-#'                     "decode" = c(1040, 1202, NA, 1096, 1096),
-#'                     "isSE" = c(NA,NA,NA,1,2))
-#' tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
-EE_getETSfromJY <- function(SheetName, key.df,
-                            extra.condition = NULL,
-                            stock.column = "InnerCode",
-                            stock.decode = "InnerCode",
-                            date.column = "InfoPublDate"){
-  nkey <- nrow(key.df)
-  varqr <- " "
-  sheetqr <- " "
-  decodeqr <- " "
-  namevec <- c()
-  for( i in 1:nkey){
-    if(is.na(key.df$decode[i])){
-      varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i,sep = "")
-      sheetqr <- paste(sheetqr, "", sep = "")
-      decodeqr <- paste(decodeqr, "", sep = "")
-      namevec <- c(namevec, as.character(key.df$key[i]))
-    }else{
-      if(is.na(key.df$isSE[i])){
-        varqr <- paste(varqr,","," target.",key.df$key[i]," ","var",i, sep="")
-        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
-        decodeqr <- paste(decodeqr," ","and target.",key.df$key[i]," = decode",i,".DM", sep ="")
-        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
-      }else{
-        varqr <- paste(varqr,","," targetse",i,".Code var",i, sep="")
-        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.",SheetName,"_SE targetse",i, sep="")
-        decodeqr <- paste(decodeqr," ","and target.ID=targetse",i,".ID", sep="")
-        decodeqr <- paste(decodeqr," ","and targetse",i,".TypeCode=",key.df$isSE[i], sep="")
-        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
-        decodeqr <- paste(decodeqr," ","and targetse",i,".Code=decode",i,".DM", sep="")
-      }
-      namevec <- c(namevec, as.character(key.df$key[i]), paste(key.df$key[i],"_decode", sep=""))
-    }
-  }
-  qr <- paste(
-    "select convert(varchar(8),target.",date.column,",112) date,
-    'EQ'+s.SecuCode stockID",varqr,"
-    from JYDB.dbo.",SheetName," target,
-    JYDB.dbo.SecuMain s", sheetqr,"
-    where target.",stock.column,"=s.",stock.decode,"
-    and s.SecuCategory in (1,2)",decodeqr, sep = ""
-  )
-  if(!is.null(extra.condition)){
-    qr <- paste(qr, extra.condition, sep = " and ")
-  }
-  temp <- QDataGet::queryAndClose.odbc(QDataGet::db.jy(), qr)
-  if(!is.null(nrow(temp))){
-    temp$date <- QUtility::intdate2r(temp$date)
-    colnames(temp) <- c("date","stockID", namevec)
-  }
-  return(temp)
-}
-
 #' Split and return the plots of each year
 #'
 #' @param TSErr The TSErr object.
@@ -549,6 +521,270 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
   return(reslist)
 }
 
+#' plug in ets and return frequency of certain period.
+#'
+#' @param ets A ets object.
+#' @param win1 The days window before the event to calculate the frequency.
+#' @return etsobj
+#' @export
+etstick <- function(ets, win1 = 20){
+  begT <- min(ets$date)
+  endT <- max(ets$date)
+  date <- QDataGet::trday.get(begT, endT)
+  fillindate <- data.frame(date, stockID = "None")
+  tmp <- rbind(ets, fillindate)
+  tmp <- dplyr::arrange(tmp, date, stockID)
+  tmp <- reshape2::dcast(tmp, formula = date~stockID)
+  extra <- tmp[1:(win1-1),]
+  extra[,-1] <- 0
+  extra[,1] <- tmp[1,1]-(win1-1):1
+  tmp <- rbind(extra,tmp)
+  tmp <- xts::xts(tmp[,-1], order.by = tmp[,1])
+  re <- zoo::rollsum(tmp, win1, align = "right")
+  date <- zoo::index(re)
+  re2 <- as.data.frame(re)
+  re2 <- cbind(date, re2)
+  re3 <- reshape2::melt(re2, id = 'date')
+  colnames(re3) <- c("date","stockID","ticks")
+  re4 <- merge(ets, re3, by=c("date","stockID"))
+  re4 <- dplyr::arrange(re4, date, stockID)
+  re4 <- re4[!duplicated(re4),]
+  return(re4)
+}
+
+#' plug in ets and return accumulated value of certain varialbe.
+#'
+#' @param etsobj An etsobj.
+#' @param win1 The days window before the event to calculate the accumulated value.
+#' @return etsobj
+#' @export
+etstack <- function(etsobj, win1 = 20){
+  begT <- min(etsobj$date)
+  endT <- max(etsobj$date)
+  date <- QDataGet::trday.get(begT,endT)
+  colnames(etsobj) <- c("date","stockID","var")
+  fillindate <- data.frame(date, stockID = "None", var = 0)
+  tmp <- rbind(etsobj, fillindate)
+  tmp <- dplyr::arrange(tmp, date, stockID)
+  tmp <- reshape2::dcast(tmp, formula = date~stockID, fun.aggregate = sum, value.var = "var")
+  extra <- tmp[1:(win1-1),]
+  extra[,-1] <- 0
+  extra[,1] <- tmp[1,1]-(win1-1):1
+  tmp <- rbind(extra,tmp)
+  tmp[is.na(tmp)] <- 0
+  tmp <- xts::xts(tmp[,-1], order.by = tmp[,1])
+  re <- zoo::rollsum(tmp, win1, align = "right")
+  date <- zoo::index(re)
+  re2 <- as.data.frame(re)
+  re2 <- cbind(date, re2)
+  re3 <- reshape2::melt(re2, id = 'date')
+  colnames(re3) <- c("date","stockID","tacks")
+  re4 <- merge(etsobj[,c("date","stockID")], re3, by=c("date","stockID"))
+  re4 <- dplyr::arrange(re4, date, stockID)
+  re4 <- re4[!duplicated(re4),]
+  return(re4)
+}
+
+#' adjusted subset function for Chinese string.
+#'
+#' @param tmpdat The data frame.
+#' @param colchar The column names.
+#' @param subsetcode The code for the subset that is going to be filtered.
+#' @return data frame subset.
+#' @export
+subsetCol <- function(tmpdat, colchar, subsetcode){
+  tmpdat <- QUtility::renameCol(tmpdat, colchar, "char")
+  tmpdat <- dplyr::left_join(tmpdat, EE_CT, by = "char" )
+  tmpdat <- subset(tmpdat, code == subsetcode)
+  tmpdat <- tmpdat[,setdiff(colnames(tmpdat), c("char","code"))]
+  return(tmpdat)
+}
+
+# ----- ETS -----
+
+#' get ETS of stocks unfrozing
+#'
+#' @return ETS object.
+#' @export
+ets.unfroz <- function(){
+  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("key"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
+  df_jy <- subset(df_jy, Proportion1>5 & SourceType %in% c(24,25))
+  ETS <- subset(df_jy, select = c("date","stockID"))
+  return(ETS)
+}
+
+#' get ETS of stocks with low forecasting
+#'
+#' @return ETS object.
+#' @export
+ets.low_F_NP <- function(){
+  begT <- as.Date("2005-01-31")
+  endT <- Sys.Date()-1
+  RebDates <- RFactorModel::getRebDates(begT,endT)
+  ts <- RFactorModel::getTS(RebDates,"EI000985")
+  tsf <- QFactorGet::gf.F_NP_chg(ts,span='w4')
+  tmp <- na.omit(tsf)
+  tmp <- tmp[tmp$factorscore<(-1),]
+  ts2 <- subset(tmp,select=c("date","stockID"))
+  return(ts2)
+}
+
+#' get ETS of leader selling stocks.
+#'
+#' @return ETS object.
+#' @export
+ets.leadersell <- function(){
+  con <- QDataGet::db.local()
+  qr <- "select * from EE_LeaderStockAlter"
+  tmpdat <- DBI::dbGetQuery(con,qr)
+  DBI::dbDisconnect(con)
+  tmpdat <- subsetCol(tmpdat, "shareholder_type" ,3)
+  tmpdat <- subsetCol(tmpdat, "direction", 4)
+  tmpdat2 <- subset(tmpdat, select = c("announcement_date","stockID"))
+  colnames(tmpdat2) <- c("date","stockID")
+  tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
+  tmpdat2 <- dplyr::arrange(tmpdat2, date, stockID)
+  return(tmpdat2)
+}
+
+#' get ETS of leader buying stocks.
+#'
+#' @return ETS object.
+#' @export
+ets.leaderbuy <- function(){
+  con <- QDataGet::db.local()
+  qr <- "select * from EE_LeaderStockAlter"
+  tmpdat <- DBI::dbGetQuery(con,qr)
+  DBI::dbDisconnect(con)
+  tmpdat <- subsetCol(tmpdat, "shareholder_type" ,3)
+  tmpdat <- subsetCol(tmpdat, "direction", 5)
+  tmpdat2 <- subset(tmpdat, select = c("announcement_date","stockID"))
+  colnames(tmpdat2) <- c("date","stockID")
+  tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
+  tmpdat2 <- dplyr::arrange(tmpdat2, date, stockID)
+  return(tmpdat2)
+}
+
+#' get ETS of leader selling stocks a lot within a few times.
+#'
+#' @return ETS object.
+#' @export
+ets.leadersell_largesell <- function(){
+  con <- QDataGet::db.local()
+  qr <- "select * from EE_LeaderStockAlter"
+  tmpdat <- dbGetQuery(con,qr)
+  dbDisconnect(con)
+  tmpdat <- subsetCol(tmpdat, "shareholder_type" ,3)
+  tmpdat <- subsetCol(tmpdat, "direction", 4)
+
+  tmpdat2 <- subset(tmpdat, select = c("announcement_date","stockID"))
+  colnames(tmpdat2) <- c("date","stockID")
+  tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
+  tmpdat2 <- dplyr::arrange(tmpdat2, date, stockID)
+  tmpdat3 <- etstick(tmpdat2, 20)
+
+  tmpdat2_v <- subset(tmpdat, select = c("announcement_date","stockID","value_change"))
+  colnames(tmpdat2_v) <- c("date","stockID","var")
+  tmpdat2_v$date <- QUtility::intdate2r(tmpdat2_v$date)
+  tmpdat2_v <- dplyr::arrange(tmpdat2_v, date, stockID)
+  tmpdat3_v <- etstack(tmpdat2_v, 20)
+
+  re1 <- subset(tmpdat3, ticks <= 10)
+  re2 <- subset(tmpdat3_v, tacks >= 1000)
+  re <- merge(re1, re2, by = c("date","stockID"))
+
+  re <- subset(re, select = c("date","stockID"))
+  return(re)
+}
+
+#' get ETS of leader buying stocks a lot within a few times.
+#'
+#' @return ETS object.
+#' @export
+ets.leaderbuy_largebuy <- function(){
+  con <- db.local()
+  qr <- "select * from EE_LeaderStockAlter"
+  tmpdat <- dbGetQuery(con,qr)
+  dbDisconnect(con)
+  tmpdat <- subsetCol(tmpdat, "shareholder_type" ,3)
+  tmpdat <- subsetCol(tmpdat, "direction", 5)
+
+  tmpdat2 <- subset(tmpdat, select = c("announcement_date","stockID"))
+  colnames(tmpdat2) <- c("date","stockID")
+  tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
+  tmpdat2 <- dplyr::arrange(tmpdat2, date, stockID)
+  tmpdat3 <- etstick(tmpdat2, 20)
+
+  tmpdat2_v <- subset(tmpdat, select = c("announcement_date","stockID","change_proportion_floating"))
+  colnames(tmpdat2_v) <- c("date","stockID","var")
+  tmpdat2_v$date <- QUtility::intdate2r(tmpdat2_v$date)
+  tmpdat2_v <- dplyr::arrange(tmpdat2_v, date, stockID)
+  tmpdat3_v <- etstack(tmpdat2_v, 20)
+
+  re1 <- subset(tmpdat3, ticks <= 3)
+  re2 <- subset(tmpdat3_v, tacks > 0.125)
+  re <- merge(re1, re2, by = c("date","stockID"))
+  re <- subset(re, select = c("date","stockID"))
+  return(re)
+}
+
+# ----- TS Screening -----
+
+#' filter stocks to remove negative event.
+#'
+#' @param tsobj An object contains ts.
+#' @return tsobj.
+#' @export
+rms.all <- function(tsobj){
+  tsobj <- rms.unfroz(tsobj)
+  tsobj <- rms.low_F_NP(tsobj)
+  return(tsobj)
+}
+
+#' filter stocks that are going to be unfrozen.
+#'
+#' @param tsobj An object contains ts.
+#' @return tsobj.
+#' @export
+rms.unfroz <- function(tsobj){
+  #begT <- as.Date("2010-01-31")
+  #endT <- as.Date("2016-05-31")
+  ts <- tsobj[,c("date","stockID")]
+  begT <- min(ts$date)
+  endT <- max(ts$date)
+  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("key"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
+  df_jy <- subset(df_jy, date>=begT & date<=endT & Proportion1>5 & SourceType %in% c(24,25))
+  ETS <- subset(df_jy, select = c("date","stockID"))
+  ETS2 <- EE_ExpandETS(ETS, win1 = 25, win2 = 1)
+  # temp <- dplyr::rowwise(ETS)
+  # temp <- dplyr::do(.data = temp, MaziBox:::EE_ExpandETS_1row(., win1 = 25, win2 = 1))
+  TS2 <- subset(ETS2, select = c("date","stockID"))
+  TS2$stockID <- as.character(TS2$stockID)
+  re <- dplyr::setdiff(ts,TS2)
+  re2 <- merge(re, tsobj, by = c("date","stockID"), all.x = TRUE)
+  return(re2)
+}
+
+#' fitler stocks that have low NP forcast
+#'
+#' @param tsobj An object contains ts.
+#' @return tsobj.
+#' @export
+rms.low_F_NP <- function(tsobj){
+  # begT <- as.Date("2010-01-31")
+  # endT <- as.Date("2016-05-31")
+  # RebDates <- getRebDates(begT,endT)
+  # ts <- getTS(RebDates,"EI000985")
+  ts <- tsobj[,c("date","stockID")]
+  tsf <- QFactorGet::gf.F_NP_chg(ts,span='w4')
+  tmp <- na.omit(tsf)
+  tmp <- tmp[tmp$factorscore<(-1),]
+  ts2 <- subset(tmp,select=c("date","stockID"))
+  re <- dplyr::setdiff(ts,ts2)
+  re2 <- merge(re, tsobj, by=c("date","stockID"), all.x = TRUE)
+  return(re2)
+}
+
 # ----- LCDB.build & update -----
 
 #' lcdb.build.EE_LeaderStockAlter
@@ -558,7 +794,7 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE){
 #' lcdb.build.EE_LeaderStockAlter()
 #' @export
 lcdb.build.EE_LeaderStockAlter <- function(){
-  suppressMessages(WindR::w.start(showmenu = FALSE))
+  WindR::w.start(showmenu = FALSE)
   res <- data.frame()
   s.date <- c()
   e.date <- c()
@@ -642,5 +878,5 @@ lcdb.update.EE_LeaderStockAlter <- function(){
       DBI::dbDisconnect(con)
       return('Done!')
     }
-  }  
+  }
 }
