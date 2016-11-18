@@ -880,3 +880,71 @@ lcdb.update.EE_LeaderStockAlter <- function(){
     }
   }
 }
+
+#' lcdb.build.EE_employeeplan
+#' 
+#' @export
+#' @examples 
+#' library(WindR)
+#' lcdb.build.EE_employeeplan()
+lcdb.build.EE_employeeplan <- function(){
+  WindR::w.start(showmenu = FALSE)
+  res <- data.frame()
+  s.date <- as.Date("2014-01-01")
+  e.date <- Sys.Date()
+  w_wset_data<-w.wset('esop',startdate=s.date,enddate=e.date)
+  if(w_wset_data$ErrorCode == 0){
+    res <- w_wset_data$Data
+    res <- res[,setdiff(colnames(res), "CODE")]
+    res <- QUtility::renameCol(res, "wind_code", "stockID")
+    res$stockID <- QDataGet::stockID2stockID(res$stockID, from = "wind", to = "local")
+    res$preplan_date <- QUtility::rdate2int(WindR::w.asDateTime(res$preplan_date, asdate = T))
+    res$fellow_smtganncedate <- QUtility::rdate2int(WindR::w.asDateTime(res$fellow_smtganncedate, asdate = T))
+    res <- res[!is.na(res$stockID),]
+    res <- dplyr::arrange(res, preplan_date, stockID)
+    con <- QDataGet::db.local()
+    RSQLite::dbWriteTable(con,'EE_EmployeePlan',res,overwrite=T,append=F,row.names=F)
+    RSQLite::dbDisconnect(con)
+    return("Done!")
+  }else{
+    return(w_wset_data)
+  }
+}
+
+#' lcdb.update.EE_employeeplan
+#' 
+#' @export
+#' @examples 
+#' library(WindR)
+#' lcdb.update.EE_employeeplan()
+lcdb.update.EE_employeeplan <- function(){
+  con <- QDataGet::db.local()
+  re <- DBI::dbReadTable(con,'EE_EmployeePlan')
+  begT <- QUtility::intdate2r(max(re$preplan_date))
+  begT <- begT+1
+  endT <- Sys.Date()
+  if(begT >= endT){
+    return("Done!")
+  }else{
+    WindR::w.start(showmenu = F)
+    w_wset_data<-w.wset('esop',startdate=begT,enddate=endT)
+    tmp <- w_wset_data$Data
+    if(w_wset_data$ErrorCode != 0) return(tmp)
+    if(nrow(tmp) == 0){
+      return("Done!")
+    }else{
+      res <- tmp
+      res <- res[,setdiff(colnames(res), "CODE")]
+      res <- QUtility::renameCol(res, "wind_code", "stockID")
+      res$stockID <- QDataGet::stockID2stockID(res$stockID, from = "wind", to = "local")
+      res$preplan_date <- QUtility::rdate2int(WindR::w.asDateTime(res$preplan_date, asdate = T))
+      res$fellow_smtganncedate <- QUtility::rdate2int(WindR::w.asDateTime(res$fellow_smtganncedate, asdate = T))
+      res <- res[!is.na(res$stockID),]
+      res <- dplyr::arrange(res, preplan_date, stockID)
+      con <- QDataGet::db.local()
+      RSQLite::dbWriteTable(con,'EE_EmployeePlan',res,overwrite=F,append=T,row.names=F)
+      RSQLite::dbDisconnect(con)
+      return("Done!")
+    }
+  }
+}
