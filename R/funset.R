@@ -165,7 +165,7 @@ getmonthFac <- function(ts, db, window = NA){
   if(is.na(window)){
     v <- unique(ts$date)
     stocklist <- unique(ts$stockID)
-    v0 <- QDataGet::trday.nearby(v[1], by = 20)
+    v0 <- QDataGet::trday.nearby(v[1], by = -20)
     v <- c(v0, v)
     ind <- findInterval(db$date, v, left.open = TRUE)
     db2 <- cbind(db, ind)
@@ -182,7 +182,7 @@ getmonthFac <- function(ts, db, window = NA){
     stocklist <- unique(ts$stockID)
     db <- subset(db, stockID %in% stocklist)
     v1 <- unique(ts$date)
-    v2 <- QDataGet::trday.nearby(v1, by = window)
+    v2 <- QDataGet::trday.nearby(v1, by = -window)
     ind1 <- findInterval(db$date, v1, left.open = TRUE)
     ind2 <- findInterval(db$date, v2, left.open = FALSE)
     db2 <- cbind(db, ind1, ind2)
@@ -232,15 +232,17 @@ gf.ezsec <- function(ts){
   return(re3)
 }
 
-#' Get tradingday through data frame.
+#' Get tradingday through vectors.
 #'
-#' @param T.df A data frame with two columns: begT, endT.
-#' @return A data frame with only one column: date.
+#' @param begTvec begT vector.
+#' @param endTvec endT vector.
+#' @return vector
 #' @export
-trday.get.df <- function(T.df){
-  QUtility::check.colnames(T.df, c("begT","endT"))
-  begT.min <- min(T.df$begT)
-  endT.max <- max(T.df$endT)
+trday.get.vec <- function(begTvec, endTvec){
+  if(length(begTvec)!=length(endTvec)) stop("The lengths of begTvec and endTvec do not match.")
+  begT.min <- min(begTvec)
+  endT.max <- max(endTvec)
+  T.df <- data.frame("begT" = begTvec, "endT" = endTvec)
   # get the market trading days
   begTT <- max(begT.min,as.Date("1990-12-19"))
   begTT <- QUtility::rdate2int(begTT)
@@ -251,7 +253,39 @@ trday.get.df <- function(T.df){
   T.df <- dplyr::rowwise(T.df)
   temp <- dplyr::do(T.df, subset(trday, TradingDate >= .$begT  &  TradingDate <= .$endT))
   colnames(temp) <- "date"
-  return(temp)
+  return(temp$date)
+}
+
+#' Count trading days trough vectors.
+#'
+#' @param begTvec begT vector.
+#' @param endTvec endT vector.
+#' @return vector.
+#' @export
+trday.count.vec <- function(begTvec, endTvec){
+  if(length(begTvec)!=length(endTvec)) stop("The lengths of begTvec and endTvec do not match.")
+  mmin <- min(min(begTvec), min(endTvec))
+  mmax <- max(max(begTvec), max(endTvec))
+  T.df <- data.frame("begT" = begTvec, "endT" = endTvec)
+  T.df2 <- T.df
+  ind <- T.df$begT > T.df$endT
+  T.df2$begT[ind] = T.df$endT[ind]
+  T.df2$endT[ind] = T.df$begT[ind]
+
+  # get the market trading days
+  begTT <- max(mmin,as.Date("1990-12-19"))
+  begTT <- QUtility::rdate2int(begTT)
+  endTT <- QUtility::rdate2int(mmax)
+  qr <- paste("select TradingDate from QT_TradingDay where SecuMarket=83 and IfTradingDay=1 and TradingDate between ",begTT,"and",endTT)
+  trday <- QDataGet::queryAndClose.dbi(QDataGet::db.local(),qr)
+  trday$TradingDate <- QUtility::intdate2r(trday$TradingDate)
+
+  #
+  T.df2 <- dplyr::rowwise(T.df2)
+  temp <- dplyr::do(T.df2, as.data.frame(nrow(subset(trday, TradingDate >= .$begT  &  TradingDate <= .$endT))))
+  colnames(temp) <- "diff"
+  temp[ind,] <- temp[ind,]*(-1)
+  return(temp$diff)
 }
 
 # ----- Event Effect Research -----
@@ -355,15 +389,15 @@ EE_getETSfromJY <- function(SheetName, key.df,
 EE_ExpandETS_1row <- function(ETS, win1 = 20, win2 = 60) {
   # QUtility::check.colnames(ETS, c('date', 'stockID'))
   # if(nrow(ETS) != 1L) {stop("this function can only be used on ETS of 1 observation.")}
-  ETS$date <- QDataGet::trday.nearest(ETS$date, dir = -1)
+  ETS$date <- QDataGet::trday.nearest(ETS$date, dir = 1)
   if(win1 > 0){
-    begT = QDataGet::trday.nearby(ETS$date, by = win1)
-    endT = QDataGet::trday.nearby(ETS$date, by = -win2)
+    begT = QDataGet::trday.nearby(ETS$date, by = -win1)
+    endT = QDataGet::trday.nearby(ETS$date, by = win2)
     res <- QDataGet::trday.get(begT = begT, endT = endT)
     ID <- rep(ETS$stockID, length(res))
     index <- c((-win1):(-1), 0, 1:win2)
   }else{
-    endT = QDataGet::trday.nearby(ETS$date, by = -win2)
+    endT = QDataGet::trday.nearby(ETS$date, by = win2)
     res <- QDataGet::trday.get(begT = ETS$date, endT = endT)
     ID <- rep(ETS$stockID, length(res))
     index <- c(0,1:win2)
@@ -383,11 +417,11 @@ EE_ExpandETS <- function(ets, win1, win2){
   QUtility::check.colnames(ets, c("date","stockID"))
   len <- win1+1+win2
   stockID.col <- rep(ets$stockID, each = len)
-  date.col <- QDataGet::trday.nearest(ets$date, dir = -1)
-  begT.col <- QDataGet::trday.nearby(date.col, by = win1)
-  endT.col <- QDataGet::trday.nearby(date.col, by = -win2)
-  T.df <- data.frame("begT" = begT.col, "endT" = endT.col)
-  date.col <- trday.get.df(T.df)
+  date.col <- QDataGet::trday.nearest(ets$date, dir = 1)
+  begT.col <- QDataGet::trday.nearby(date.col, by = -win1)
+  endT.col <- QDataGet::trday.nearby(date.col, by = win2)
+  # T.df <- data.frame("begT" = begT.col, "endT" = endT.col)
+  date.col <- trday.get.vec(begT.col, endT.col)
   if(win1 > 0){
     b <- c((-win1:-1),0:win2)
     No <- rep(b, nrow(ets))
@@ -395,7 +429,7 @@ EE_ExpandETS <- function(ets, win1, win2){
     b <- 0:win2
     No <- rep(b, nrow(ets))
   }
-  res <- data.frame("No" = No, "date" = date.col$date, "stockID" = stockID.col)
+  res <- data.frame("No" = No, "date" = date.col, "stockID" = stockID.col)
   return(res)
 }
 
@@ -471,6 +505,20 @@ EE_Plot <- function(TSErr){
     ggplot2::ylab("Daily Abnormal Return")+ggplot2::xlab("Date Series")
   re <- QUtility::multiplot(plotlist = list(p1,p2), ncol=1)
   return(re)
+}
+
+#' Plug in TSErr object and return the summary table
+#'
+#' @param TSErr The TSErr object
+#' @return table.
+#' @export
+EE_table <- function(TSErr){
+  TSErr$err <- fillna(TSErr$err, method = "zero")
+  tmpdat <- dplyr::group_by(TSErr, No)
+  tmpdat <- dplyr::summarise(tmpdat, mean = mean(err), std = sqrt(var(err)))
+  # tmpdat <- plyr::ddply(.data = TSErr, .variables = "No", plyr::summarise, mean = mean(err))
+  colnames(tmpdat) <- c("No","err","std")
+  return(tmpdat)
 }
 
 #' Split and return the plots of each year
@@ -600,6 +648,66 @@ subsetCol <- function(tmpdat, colchar, subsetcode){
   return(tmpdat)
 }
 
+# ----- ETS factor function -----
+
+#' plug in ts object and return with ets object.
+#'
+#' @param tsobj A ts object.
+#' @return A data frame with T,S,E and diff.
+#' @export
+getETS <- function(tsobj){
+
+  ts <- tsobj[,c("date","stockID")]
+  datelist <- unique(ts$date)
+  # load all
+  con <- QDataGet::db.local()
+  EE_pool <- DBI::dbReadTable(con,'EE_pool')
+  DBI::dbDisconnect(con)
+  EE_pool$date <- QUtility::intdate2r(EE_pool$date)
+  finalre <- list()
+
+  for(i in 1:length(datelist)){
+    tmpts <- subset(ts, date == datelist[i])
+    startdate <- QDataGet::trday.nearby(datelist[i], by = -20)
+    enddate <- QDataGet::trday.nearby(datelist[i], by = 20)
+    tmppool <- subset(EE_pool, date >= startdate & date <= enddate)
+    if(nrow(tmppool) == 0) next
+    tmptmp <- rep(datelist[i], nrow(tmppool))
+    tmppool$diff <- trday.count.vec(begTvec =  tmppool$date, endTvec = tmptmp)
+    tmppool$date <- datelist[i]
+    rownames(tmppool) <- NULL
+    tmppool <- dplyr::arrange(tmppool, date, stockID, diff)
+    finalre[[i]] <- tmppool
+  }
+  finalre <- data.table::rbindlist(finalre)
+  return(finalre)
+}
+
+#' plug in ts object and return with ets score.
+#'
+#' @param tsobj A tsobj.
+#' @return ts object with event score.
+#' @export
+getETSscore <- function(tsobj){
+  ts <- tsobj[,c("date","stockID")]
+  ets <- getETS(ts)
+  negdirlist <- c("ets.unfroz")
+  ets <- subset(ets, as.logical(((event %in% negdirlist) & (diff <= 0)) + (!(event %in% negdirlist) & (diff >=0))))
+  ets <- QUtility::renameCol(ets, "diff", "No")
+
+  con <- QDataGet::db.local()
+  EE_score_sum <- DBI::dbReadTable(con,'EE_score_sum')
+  DBI::dbDisconnect(con)
+
+  re <- merge(ets,EE_score_sum, by = c("event","No"))
+  re <- dplyr::arrange(re, date, stockID)
+  re <- re[,c("date","stockID","err")]
+  re <- QUtility::renameCol(re, "err","eventscore")
+  re2 <- merge.x(tsobj, re)
+  re2$eventscore <- fillna(re2$eventscore, "zero")
+  return(re2)
+}
+
 # ----- ETS -----
 
 #' get ETS of stocks unfrozing
@@ -702,11 +810,11 @@ ets.leadersell_largesell <- function(){
 #' @return ETS object.
 #' @export
 ets.leaderbuy_largebuy <- function(){
-  con <- db.local()
-  qr <- "select * from EE_LeaderStockAlter"
-  tmpdat <- dbGetQuery(con,qr)
-  dbDisconnect(con)
-  tmpdat <- subsetCol(tmpdat, "shareholder_type" ,3)
+
+  con <- QDataGet::db.local()
+  tmpdat <- DBI::dbReadTable(con,'EE_EmployeePlan')
+  DBI::dbDisconnect(con)
+  tmpdat <- subsetCol(tmpdat, "shareholder_type", 3)
   tmpdat <- subsetCol(tmpdat, "direction", 5)
 
   tmpdat2 <- subset(tmpdat, select = c("announcement_date","stockID"))
@@ -727,6 +835,24 @@ ets.leaderbuy_largebuy <- function(){
   re <- subset(re, select = c("date","stockID"))
   return(re)
 }
+
+#' get ETS of employee plan
+#'
+#' @return ETS object
+#' @export
+ets.employeeplan <- function(){
+  con <- QDataGet::db.local()
+  qr <- "select * from EE_EmployeePlan"
+  tmpdat <- DBI::dbGetQuery(con,qr)
+  # as.data.frame(table(tmpdat$fund_source))
+  mark <- summary(tmpdat$shares_ratio)[[3]]
+  tmpdat2 <- subset(tmpdat, shares_ratio >= mark ,select = c("preplan_date","stockID"))
+  colnames(tmpdat2) <- c("date","stockID")
+  tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
+  return(tmpdat2)
+}
+
+
 
 # ----- TS Screening -----
 
@@ -882,9 +1008,9 @@ lcdb.update.EE_LeaderStockAlter <- function(){
 }
 
 #' lcdb.build.EE_employeeplan
-#' 
+#'
 #' @export
-#' @examples 
+#' @examples
 #' library(WindR)
 #' lcdb.build.EE_employeeplan()
 lcdb.build.EE_employeeplan <- function(){
@@ -912,9 +1038,9 @@ lcdb.build.EE_employeeplan <- function(){
 }
 
 #' lcdb.update.EE_employeeplan
-#' 
+#'
 #' @export
-#' @examples 
+#' @examples
 #' library(WindR)
 #' lcdb.update.EE_employeeplan()
 lcdb.update.EE_employeeplan <- function(){
@@ -947,4 +1073,66 @@ lcdb.update.EE_employeeplan <- function(){
       return("Done!")
     }
   }
+}
+
+#' lcdb.build.EE_score
+#'
+#' @export
+lcdb.build.EE_score <- function(){
+  re <- list()
+  for(i in 1:length(etsvec)){
+    ets <- eval(call(etsvec[i]))
+    ets <- subset(ets, date <= Sys.Date())
+    tserr <- EE_GetTSErr(ets, win1 = 60, win2 = 60)
+    re[[i]] <- EE_table(tserr)
+    re[[i]]$event <- etsvec[i]
+  }
+  finalre <- data.table::rbindlist(re)
+  con <- QDataGet::db.local()
+  RSQLite::dbWriteTable(con,'EE_score',finalre,overwrite=T,append=F,row.names=F)
+  RSQLite::dbDisconnect(con)
+  return("Done!")
+}
+
+#' lcdb.build.EE_score_sum
+#'
+#' @export
+lcdb.build.EE_score_sum <- function(){
+
+  con <- QDataGet::db.local()
+  tmpdat <- DBI::dbReadTable(con,'EE_score')
+  DBI::dbDisconnect(con)
+  eventlist <- unique(tmpdat$event)
+  re <- list()
+  for( i in 1:length(eventlist)){
+    subdat <- subset(tmpdat, event == eventlist[i], select = c("No","err","event"))
+    errsum <- zoo::rollsum(subdat$err, k=20, align = "left")
+    subdat <- subdat[1:length(errsum),]
+    subdat$err <- errsum
+    re[[i]] <- subdat
+    gc()
+  }
+  finalre <- data.table::rbindlist(re)
+  con <- QDataGet::db.local()
+  RSQLite::dbWriteTable(con,'EE_score_sum',finalre,overwrite=T,append=F,row.names=F)
+  RSQLite::dbDisconnect(con)
+  return("Done!")
+}
+
+#' lcdb.build.EE_pool
+#'
+#' @export
+lcdb.build.EE_pool <- function(){
+  re <- list()
+  for(i in 1:length(etsvec)){
+    re[[i]] <- eval(call(etsvec[i]))
+    re[[i]]$event <- etsvec[i]
+  }
+  finalre <- data.table::rbindlist(re)
+  finalre$date <- QUtility::rdate2int(finalre$date)
+  finalre <- dplyr::arrange(finalre, date, stockID, event)
+  con <- QDataGet::db.local()
+  RSQLite::dbWriteTable(con,'EE_pool',finalre,overwrite=T,append=F,row.names=F)
+  RSQLite::dbDisconnect(con)
+  return("Done!")
 }
