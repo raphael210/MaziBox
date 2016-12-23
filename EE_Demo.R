@@ -28,7 +28,7 @@ ETS <- ets.employee_plan()
 
 # Obtain the "Daily Abnormal Return" in the event research window.
 # win1 represents the days before the event date, and win2 represents the days after the event date. Both arguments are positive int.
-TSErr <- EE_getTSErr(ETS, win1 = 20, win2 = 60)
+TSErr <- EE_GetTSErr(ETS, win1 = 20, win2 = 60)
 
 # Table TSErr
 # The following function will return the summary table which indicating the average daily abnormal return with respect to the entire ETS set.

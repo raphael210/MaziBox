@@ -812,7 +812,7 @@ ets.leadersell_largesell <- function(){
 ets.leaderbuy_largebuy <- function(){
 
   con <- QDataGet::db.local()
-  tmpdat <- DBI::dbReadTable(con,'EE_EmployeePlan')
+  tmpdat <- DBI::dbReadTable(con,'EE_LeaderStockAlter')
   DBI::dbDisconnect(con)
   tmpdat <- subsetCol(tmpdat, "shareholder_type", 3)
   tmpdat <- subsetCol(tmpdat, "direction", 5)
