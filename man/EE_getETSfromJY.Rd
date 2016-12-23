@@ -11,7 +11,7 @@ EE_getETSfromJY(SheetName, key.df, extra.condition = NULL,
 \arguments{
 \item{SheetName}{The sheet name string of the data.}
 
-\item{key.df}{The data frame containing three columns: key, decode, isSE(whether the variable is in the SE sheet, if it's, the value is the TypeCode value).}
+\item{key.df}{The key data frame.}
 
 \item{extra.condition}{The extra qr string could be add to the SQL.}
 
@@ -29,12 +29,14 @@ Get ETS object from JY database
 }
 \examples{
 # Fetching the ETS of investors' activities.
-key.df <- data.frame("key" = c("SerialNb"), "decode" =c(NA), "isSE"=c(NA))
+key.df <- rbind(buildkey("SerialNb"))
 tmpdat <- EE_getETSfromJY(SheetName = "LC_InvestorRa", key.df)
 # Fetching the ETS of shares transfering.
-key.df <- data.frame("key" = c("TranShareType", "TranMode", "IfSuspended", "TansfererEcoNature","ReceiverEcoNature"), 
-                    "decode" = c(1040, 1202, NA, 1096, 1096),
-                    "isSE" = c(NA,NA,NA,1,2))
+key.df <- rbind(buildkey("TranShareType",1040),
+                buildkey("TranMode",1202),
+                buildkey("IfSuspended"),
+                buildkey("TransfererEcoNature",1096,1),
+                buildkey("ReceiverEcoNature",1096,2))
 tmpdat <- EE_getETSfromJY(SheetName = "LC_ShareTransfer", key.df)
 }
 
