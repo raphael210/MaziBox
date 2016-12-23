@@ -4,13 +4,13 @@
 \alias{rms.low_F_NP}
 \title{fitler stocks that have low NP forcast}
 \usage{
-rms.low_F_NP(ts)
+rms.low_F_NP(tsobj)
 }
 \arguments{
-\item{ts}{A ts object.}
+\item{tsobj}{An object contains ts.}
 }
 \value{
-ts A ts object.
+tsobj.
 }
 \description{
 fitler stocks that have low NP forcast
