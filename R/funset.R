@@ -912,13 +912,23 @@ lcdb.build.EE_CroxSecReg <- function(){
   TS <- getTS(RebDates, indexID = "EI000985")
   TSF <- getTSF(TS, factorFun = "gf.ln_mkt_cap")
   TSFR <- getTSR(TSF)
-  res_list <- reg.TSFR(TSFR, regType = "glm", glm_wgt = "sqrtFV",
-                       sectorAttr = defaultSectorAttr())
-  finalre <- res_list$res
-  finalre <- renameCol(finalre, "residual", "err")
-  con <- QDataGet::db.local()
-  RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=T,append=F,row.names=F)
-  RSQLite::dbDisconnect(con)
+  yy <- unique(lubridate::year(TSFR$date))
+  for(ii in 1:length(yy)){
+    TSFR_ <- subset(TSFR, lubridate::year(date) == yy[ii])
+    res_list <- reg.TSFR(TSFR_, regType = "glm", glm_wgt = "sqrtFV",
+                         sectorAttr = defaultSectorAttr())
+    finalre <- res_list$res
+    finalre <- renameCol(finalre, "res", "err")
+    finalre$date <- intdate2r(finalre$date)
+    con <- QDataGet::db.local()
+    if(ii == 1){
+      RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=T,append=F,row.names=F)
+    }else{
+      RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=F,append=T,row.names=F)
+    }
+    RSQLite::dbDisconnect(con)
+    gc()
+  }
   return("Done!")
 }
 
