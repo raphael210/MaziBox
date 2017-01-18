@@ -4,7 +4,7 @@
 \alias{getETSscore}
 \title{plug in ts object and return with ets score.}
 \usage{
-getETSscore(tsobj)
+getETSscore(tsobj, EventSet = NULL, rollwin = 20)
 }
 \arguments{
 \item{tsobj}{A tsobj.}

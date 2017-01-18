@@ -14,9 +14,12 @@ buildkey(kkey, decode, isSE)
 \item{key}{The column name.}
 }
 \value{
-A single row in the data frame format. Rbind the keys to one single data frame and apply it in the the EE_getETSfromJY function.
+A single row in the data frame format.
 }
 \description{
 build key for key data frame
+}
+\details{
+Rbind the keys to one single data frame and apply it in the the EE_getETSfromJY function.
 }
 

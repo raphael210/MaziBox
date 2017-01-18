@@ -9,7 +9,7 @@ getmonthFac(ts, db, window = NA)
 \arguments{
 \item{ts}{The TS object.}
 
-\item{db}{The data frame containing the daily TSF data.}
+\item{db}{The database containing the daily TSF data.}
 
 \item{window}{An interger indicating the time window to summarize. If NA, the time window will be the time interval between the rebalance dates.}
 }

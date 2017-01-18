@@ -4,13 +4,13 @@
 \alias{EE_Plot}
 \title{Plug in TSErr object and return the summary plot}
 \usage{
-EE_Plot(TSErr)
+EE_Plot(TSErr, bmk = NULL)
 }
 \arguments{
 \item{TSErr}{The TSErr object which must containing No and err columns.}
 }
 \value{
-Two plots.
+Plot
 }
 \description{
 Plug in TSErr object and return the summary plot

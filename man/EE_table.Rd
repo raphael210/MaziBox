@@ -10,7 +10,7 @@ EE_table(TSErr)
 \item{TSErr}{The TSErr object}
 }
 \value{
-table.
+Table.
 }
 \description{
 Plug in TSErr object and return the summary table

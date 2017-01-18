@@ -4,10 +4,12 @@
 \alias{getETS}
 \title{plug in ts object and return with ets object.}
 \usage{
-getETS(tsobj)
+getETS(tsobj, EventSet = NULL, win = 20)
 }
 \arguments{
 \item{tsobj}{A ts object.}
+
+\item{EventSet}{a vector to specify the events.}
 }
 \value{
 A data frame with T,S,E and diff.

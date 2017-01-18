@@ -9,10 +9,10 @@ fillna(vec, method = "mean", trim = NA)
 \arguments{
 \item{vec}{A vector.}
 
-\item{method}{The method to fill in the NA.}
+\item{method}{The method to fill the NAs, could be median, mean, zero.}
 }
 \value{
-A vector without NA values.
+A vector.
 }
 \description{
 Fill in the NA.

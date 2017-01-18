@@ -14,6 +14,8 @@ EE_GetTSErr(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60)
 \item{win1}{Integer. The time window of days before the event date.}
 
 \item{win2}{Integer. The time window of days after the event date.}
+
+\item{cleansing}{Logical values. If true, the result will be fill NA and winsorized before out put.}
 }
 \value{
 A TS object with Err and index.
