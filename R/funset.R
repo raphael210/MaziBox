@@ -901,6 +901,27 @@ rms.low_F_NP <- function(tsobj){
 
 # ----- LCDB.build & update -----
 
+#' lcdb.build.EE_CroxSecReg
+#'
+#' @export
+lcdb.build.EE_CroxSecReg <- function(){
+  begT <- as.Date("2005-01-04")
+  endT <- Sys.Date()
+  # endT <- as.Date("2005-02-27")
+  RebDates <- getRebDates(begT,endT,rebFreq = "day")
+  TS <- getTS(RebDates, indexID = "EI000985")
+  TSF <- getTSF(TS, factorFun = "gf.ln_mkt_cap")
+  TSFR <- getTSR(TSF)
+  res_list <- reg.TSFR(TSFR, regType = "glm", glm_wgt = "sqrtFV",
+                       sectorAttr = defaultSectorAttr())
+  finalre <- res_list$res
+  finalre <- renameCol(finalre, "residual", "err")
+  con <- QDataGet::db.local()
+  RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=T,append=F,row.names=F)
+  RSQLite::dbDisconnect(con)
+  return("Done!")
+}
+
 #' lcdb.build.EE_LeaderStockAlter
 #'
 #' @examples
