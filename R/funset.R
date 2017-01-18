@@ -63,22 +63,6 @@ ladderNAV <- function(assetRtn,ruledf,rebalance=NULL){
   return(assetRtn)
 }
 
-#' Wrap up tsRemoteCallFunc with additional StockID column
-#'
-#' @param funchar A character string indicating which function to use in tsRemoteCallFunc.
-#' @param funpar A list for function parameters.
-#' @param syspar A list for system parameters, eg. StockID.
-#' @return A complicated list without unlist.
-#' @export
-wraptsfun <- function(funchar, funpar = NULL, syspar = NULL){
-  # funpar <- list(begT = rdate2ts(as.Date("2014-01-01")),
-  #                endT = rdate2ts(as.Date("2014-01-01")))
-  # syspar <- list(StockID = StockID)
-  tmp <- tsRemoteCallFunc(funchar = funchar, pars = funpar, syspars = syspar)
-  tmp <- plyr::llply(.data = tmp, function(i) within(i, StockID <- StockID))
-  return(tmp)
-}
-
 # ----- MultiFac Model -----
 
 #' Fill in the NA.
@@ -591,8 +575,8 @@ subsetCol <- function(tmpdat, colchar, subsetcode){
 #' plug in ts object and return with ets object.
 #'
 #' @param tsobj A ts object.
-#' @param EventSet a vector to specify the events.
-#' @return A data frame with T,S,E and diff.
+#' @param EventSet a vector to specify the events. If null, all the events in DefaultEventSet will be applied to use.
+#' @return A data frame with date, stockID, event and the lag of days.
 #' @export
 getETS <- function(tsobj, EventSet = NULL, win = 20){
 
@@ -632,6 +616,7 @@ getETS <- function(tsobj, EventSet = NULL, win = 20){
 #' plug in ts object and return with ets score.
 #'
 #' @param tsobj A tsobj.
+#' @param EventSet a vector to specify the events. If null, all the events in DefaultEventSet will be applied to use.
 #' @return ts object with event score.
 #' @export
 getETSscore <- function(tsobj, EventSet = NULL, rollwin = 20){
