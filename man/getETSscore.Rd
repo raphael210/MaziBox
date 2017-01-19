@@ -8,6 +8,8 @@ getETSscore(tsobj, EventSet = NULL, rollwin = 20)
 }
 \arguments{
 \item{tsobj}{A tsobj.}
+
+\item{EventSet}{a vector to specify the events. If null, all the events in DefaultEventSet will be applied to use.}
 }
 \value{
 ts object with event score.

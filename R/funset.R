@@ -904,7 +904,7 @@ lcdb.build.EE_CroxSecReg <- function(){
                          sectorAttr = defaultSectorAttr())
     finalre <- res_list$res
     finalre <- renameCol(finalre, "res", "err")
-    finalre$date <- intdate2r(finalre$date)
+    finalre$date <- rdate2int(finalre$date)
     con <- QDataGet::db.local()
     if(ii == 1){
       RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=T,append=F,row.names=F)
@@ -1116,10 +1116,10 @@ lcdb.build.EE_pool <- function(){
   return("Done!")
 }
 
-#' lcdb.build.LC_ForecastAndReport
+#' lcdb.build.EE_ForecastAndReport
 #'
 #' @export
-lcdb.build.LC_ForecastAndReport <- function(){
+lcdb.build.EE_ForecastAndReport <- function(){
   stocklist <- getIndexComp("EI000985")
   funchar = "infoarray(128)"
   tmpfile <- stockID2stockID(stocklist,from="local",to="ts")
@@ -1165,7 +1165,7 @@ lcdb.build.LC_ForecastAndReport <- function(){
   res <- merge(fct2, fct, by = c("stockID","enddate"), all = TRUE)
 
   con <- QDataGet::db.local()
-  RSQLite::dbWriteTable(con,'LC_ForecastAndReport',res,overwrite=T,append=F,row.names=F)
+  RSQLite::dbWriteTable(con,'EE_ForecastAndReport',res,overwrite=T,append=F,row.names=F)
   RSQLite::dbDisconnect(con)
   return("Done!")
 }
