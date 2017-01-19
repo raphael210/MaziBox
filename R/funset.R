@@ -427,6 +427,7 @@ EE_table <- function(TSErr){
 #' @export
 EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE, bmk = NULL){
    if(!is.null(bmk)){
+     bmk <- dplyr::arrange(bmk, date, stockID)
     if(breakwindow == FALSE){
       coreETS_0 <- subset(bmk, No == 0, select = c("date", "stockID"))
       tmpyy_0 <- lubridate::year(coreETS_0$date)
@@ -438,7 +439,8 @@ EE_splityear <- function(TSErr, everyyear = FALSE, breakwindow = FALSE, bmk = NU
       yy_0 <- as.factor(yy_0)
       bmk$yy <- yy_0
     }
-  }
+   }
+  TSErr <- dplyr::arrange(TSErr, date, stockID)
   if(breakwindow == FALSE){
     coreETS <- subset(TSErr, No == 0, select = c("date", "stockID"))
     tmpyy <- lubridate::year(coreETS$date)
@@ -904,6 +906,7 @@ lcdb.build.EE_CroxSecReg <- function(){
                          sectorAttr = defaultSectorAttr())
     finalre <- res_list$res
     finalre <- renameCol(finalre, "res", "err")
+    finalre$date <- trday.nearby(finalre$date, by = 1)
     finalre$date <- rdate2int(finalre$date)
     con <- QDataGet::db.local()
     if(ii == 1){
