@@ -993,13 +993,30 @@ lcdb.build.EE_CroxSecReg <- function(begT,endT,factorLists){
 #' lcdb.update.EE_CroxSecReg
 #'
 #' @export
-lcdb.update.EE_CroxSecReg <- function(endT, factorLists){
+lcdb.update.EE_CroxSecReg <- function(begT, endT, factorLists){
 
   con <- db.local()
   qr <- paste0("select max(date) from EE_CroxSecReg")
-  begT <- dbGetQuery(con, qr)[[1]]
+  begT_lcdb <- dbGetQuery(con, qr)[[1]]
   dbDisconnect(con)
-  begT <- intdate2r(begT)
+  begT_lcdb <- intdate2r(begT_lcdb)
+
+  if(missing(begT)){
+    begT <- begT_lcdb
+  }else{
+    begT <- trday.nearest(begT)
+    if(begT <= begT_lcdb){
+      begT_ <- rdate2int(begT)
+      con <- db.local()
+      qr <- paste0("delete from EE_CroxSecReg
+                   where date >= ", begT_)
+      RSQLite::dbSendQuery(con,qr)
+      RSQLite::dbDisconnect(con)
+      begT <- trday.nearby(begT,by = -1)
+    }else if(begT > begT_lcdb){
+      begT <- begT_lcdb
+    }
+  }
 
   if(missing(endT)){
     endT <- Sys.Date() - 1
@@ -1013,6 +1030,7 @@ lcdb.update.EE_CroxSecReg <- function(endT, factorLists){
       factorLists = buildFactorLists(
         buildFactorList(factorFun = "gf.ln_mkt_cap", factorStd = "norm", factorNA = "na"))
     }
+    begT <- trday.nearby(begT, by = 1)
     RebDates <- getRebDates(begT,endT,rebFreq = "day")
     monthind <- cut.Date2(RebDates,"month")
     monthlist <- unique(monthind)
@@ -1036,7 +1054,6 @@ lcdb.update.EE_CroxSecReg <- function(endT, factorLists){
     return("Done!")
   }
 }
-
 
 
 #' lcdb.build.EE_LeaderStockAlter
