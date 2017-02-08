@@ -7,11 +7,11 @@
 buildkey(kkey, decode, isSE)
 }
 \arguments{
+\item{kkey}{The column name.}
+
 \item{decode}{The decoding number if the values have to be interpreted by the CT_SystemConst sheet.}
 
 \item{isSE}{NA if the variable is not in the sub-sheet. Otherwise, look up the SE sub-sheet and fill in the TypeCode of the variable.}
-
-\item{key}{The column name.}
 }
 \value{
 A single row in the data frame format.

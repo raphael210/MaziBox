@@ -4,7 +4,8 @@
 \alias{ets.forecast}
 \title{get ETS of forecast report}
 \usage{
-ets.forecast(season = c("all", "1", "2", "3", "4"))
+ets.forecast(season = c("all", "1", "2", "3", "4"), pool = c("002", "300",
+  "zhuban", "all"))
 }
 \value{
 ETS object

@@ -191,7 +191,7 @@ trday.count.vec <- function(begTvec, endTvec){
 
 #' build key for key data frame
 #'
-#' @param key The column name.
+#' @param kkey The column name.
 #' @param decode The decoding number if the values have to be interpreted by the CT_SystemConst sheet.
 #' @param isSE NA if the variable is not in the sub-sheet. Otherwise, look up the SE sub-sheet and fill in the TypeCode of the variable.
 #' @return A single row in the data frame format.
@@ -237,37 +237,35 @@ EE_getETSfromJY <- function(SheetName, key.df,
   namevec <- c()
   for( i in 1:nkey){
     if(is.na(key.df$decode[i])){
-      varqr <- paste(varqr,","," target.",key.df$kkey[i]," ","var",i,sep = "")
-      sheetqr <- paste(sheetqr, "", sep = "")
-      decodeqr <- paste(decodeqr, "", sep = "")
+      varqr <- paste0(varqr,","," target.",key.df$kkey[i]," ","var",i)
       namevec <- c(namevec, as.character(key.df$kkey[i]))
     }else{
       if(is.na(key.df$isSE[i])){
-        varqr <- paste(varqr,","," target.",key.df$kkey[i]," ","var",i, sep="")
-        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
-        decodeqr <- paste(decodeqr," ","and target.",key.df$kkey[i]," = decode",i,".DM", sep ="")
-        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
+        varqr <- paste0(varqr,","," target.",key.df$kkey[i]," ","var",i)
+        varqr <- paste0(varqr,","," decode",i,".MS"," ","var_",i)
+        sheetqr <- paste0(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i)
+        decodeqr <- paste0(decodeqr," ","and target.",key.df$kkey[i]," = decode",i,".DM")
+        decodeqr <- paste0(decodeqr," ","and decode",i,".LB=",key.df$decode[i])
       }else{
-        varqr <- paste(varqr,","," targetse",i,".Code var",i, sep="")
-        varqr <- paste(varqr,","," decode",i,".MS"," ","var_",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i, sep="")
-        sheetqr <- paste(sheetqr,","," JYDB.dbo.",SheetName,"_SE targetse",i, sep="")
-        decodeqr <- paste(decodeqr," ","and target.ID=targetse",i,".ID", sep="")
-        decodeqr <- paste(decodeqr," ","and targetse",i,".TypeCode=",key.df$isSE[i], sep="")
-        decodeqr <- paste(decodeqr," ","and decode",i,".LB=",key.df$decode[i], sep="")
-        decodeqr <- paste(decodeqr," ","and targetse",i,".Code=decode",i,".DM", sep="")
+        varqr <- paste0(varqr,","," targetse",i,".Code var",i)
+        varqr <- paste0(varqr,","," decode",i,".MS"," ","var_",i)
+        sheetqr <- paste0(sheetqr,","," JYDB.dbo.CT_SystemConst decode",i)
+        sheetqr <- paste0(sheetqr,","," JYDB.dbo.",SheetName,"_SE targetse",i)
+        decodeqr <- paste0(decodeqr," ","and target.ID=targetse",i,".ID")
+        decodeqr <- paste0(decodeqr," ","and targetse",i,".TypeCode=",key.df$isSE[i])
+        decodeqr <- paste0(decodeqr," ","and decode",i,".LB=",key.df$decode[i])
+        decodeqr <- paste0(decodeqr," ","and targetse",i,".Code=decode",i,".DM")
       }
-      namevec <- c(namevec, as.character(key.df$kkey[i]), paste(key.df$kkey[i],"_decode", sep=""))
+      namevec <- c(namevec, as.character(key.df$kkey[i]), paste0(key.df$kkey[i],"_decode"))
     }
   }
-  qr <- paste(
+  qr <- paste0(
     "select convert(varchar(8),target.",date.column,",112) date,
     'EQ'+s.SecuCode stockID",varqr,"
     from JYDB.dbo.",SheetName," target,
     JYDB.dbo.SecuMain s", sheetqr,"
     where target.",stock.column,"=s.",stock.decode,"
-    and s.SecuCategory in (1,2)",decodeqr, sep = ""
+    and s.SecuCategory in (1,2)",decodeqr
   )
   if(!is.null(extra.condition)){
     qr <- paste(qr, extra.condition, sep = " and ")
@@ -663,7 +661,7 @@ getETSscore <- function(tsobj, EventSet = NULL, rollwin = 20){
 #' @return ETS object.
 #' @export
 ets.unfroz <- function(){
-  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("key"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
+  df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("kkey"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
   df_jy <- subset(df_jy, Proportion1>5 & SourceType %in% c(24,25))
   ETS <- subset(df_jy, select = c("date","stockID"))
   return(ETS)
@@ -804,10 +802,11 @@ ets.employeeplan <- function(){
 #'
 #' @return ETS object
 #' @export
-ets.forecast <- function(season = c("all",'1','2','3','4')){
+ets.forecast <- function(season = c("all",'1','2','3','4'), pool=c("002","300","zhuban","all")){
   con <- db.local()
   season <- match.arg(season)
-  qr <- paste("select stockID, enddate, ForcastType, EGrowthRateFloor, EProfitFloor, ActualDate
+  pool <- match.arg(pool)
+  qr <- paste("select stockID, enddate, date, ForcastType, EGrowthRateFloor, EProfitFloor, ActualDate
               from LC_ForecastAndReport")
   res <- dbGetQuery(con, qr)
   res <- subset(res, ForcastType == 4)
@@ -821,22 +820,84 @@ ets.forecast <- function(season = c("all",'1','2','3','4')){
     res <- subset(res, substr(enddate, 5,8) == "1231")
   }
   res <- na.omit(res)
-  res <- subset(res, substr(stockID, 1, 5) == "EQ002")
+  if( pool == "002"){
+    res <- subset(res, substr(stockID, 1, 5) == "EQ002")
+  }else if( pool == "300"){
+    res <- subset(res, substr(stockID, 1, 5) == "EQ300")
+  }else if( pool == "zhuban"){
+    res <- subset(res, substr(stockID, 1, 5) != "EQ002")
+    res <- subset(res, substr(stockID, 1, 5) != "EQ300")
+  }
   datelist <- sort(unique(res$enddate))
   finalres <- list()
+  s1 <- 0
+  s2 <- 0
   for( i in 1:length(datelist)){
     tmpres <- subset(res, enddate == datelist[i])
     if(nrow(tmpres) < 20) next
+    tmpres_ <- subset(tmpres, EGrowthRateFloor >= s1 & EProfitFloor >= s2)
+    finalres[[i]] <- tmpres_[,c("date","stockID")]
+    colnames(finalres[[i]]) <- c("date","stockID")
     s1 <- quantile(tmpres$EGrowthRateFloor, 0.25)
     s2 <- quantile(tmpres$EProfitFloor, 0.25)
-    tmpres <- subset(tmpres, EGrowthRateFloor >= s1 & EProfitFloor >= s2)
-    finalres[[i]] <- tmpres[,c("ActualDate","stockID")]
-    colnames(finalres[[i]]) <- c("date","stockID")
   }
   finalres2 <- data.table::rbindlist(finalres)
   finalres2$date <- QUtility::intdate2r(finalres2$date)
   finalres2 <- na.omit(finalres2)
   return(finalres2)
+}
+
+#' ets.belowExpectation
+#'
+#' @return ETS object.
+#' @export
+ets.belowExpectation <- function(){
+
+  # RPTDATE SEQ
+  sq1 <- seq(2000, 2017)
+  sq2 <- c('0331','0630','0930','1231')
+  rptsq <- c()
+  for(i in sq1){
+    rptsq <- c(rptsq, paste0(i,sq2))
+  }
+  rptsq <- as.integer(rptsq)
+
+  # DATA SET 0, FORECAST
+  con <- db.local()
+  qr <- paste("select * from LC_ForecastAndReport")
+  tmpdat <- dbGetQuery(con,qr)
+  dbDisconnect(con)
+  ind <- !is.na(tmpdat$EGrowthRateFloor) & !is.na(tmpdat$EGrowthRateCeiling)
+  tmpdat0 <- tmpdat[ind,]
+
+  # DATA SET 1, LAST FORECAST
+  tmpdat1 <- subset(tmpdat0, select=c("stockID","enddate","date","EGrowthRateFloor","EGrowthRateCeiling"))
+  colnames(tmpdat1) <- c("stockID","enddate","date","L.EGrowthRateFloor","L.EGrowthRateCeiling")
+  tmpdat1 <- dplyr::arrange(tmpdat1, stockID, enddate, date)
+  tmpdat1 <- tmpdat1[!duplicated(tmpdat1,fromLast = T),]
+  tmpdat1 <- dplyr::select(tmpdat1, -date)
+  ind <- match(tmpdat1$enddate, rptsq)
+  ind <- ind + 1
+  tmpdat1$enddate <- rptsq[ind]
+
+  # merge
+  finalre <- merge(tmpdat0, tmpdat1, by = c("stockID","enddate"), all.x = T)
+  finalre <- dplyr::arrange(finalre, stockID, enddate)
+
+  # compute flags
+  # flag1
+  finalre$flag1 <- 0
+  ind1 <- finalre$EGrowthRateCeiling < finalre$L.EGrowthRateCeiling
+  ind1[is.na(ind1)] <- FALSE
+  ind2 <- finalre$EGrowthRateFloor < finalre$L.EGrowthRateFloor
+  ind2[is.na(ind2)] <- FALSE
+  finalre$flag1[ind1] <- finalre$flag1[ind1] + 1
+  finalre$flag1[ind2] <- finalre$flag1[ind2] + 1
+
+  finalrere <- subset(finalre, flag1 >= 2 & ForcastType == 4, select = c("date","stockID"))
+  finalrere <- na.omit(finalrere)
+  finalrere$date <- intdate2r(finalrere$date)
+  return(finalrere)
 }
 
 # ----- TS Screening -----
@@ -891,19 +952,28 @@ rms.low_F_NP <- function(tsobj){
 #' lcdb.build.EE_CroxSecReg
 #'
 #' @export
-lcdb.build.EE_CroxSecReg <- function(){
-  begT <- as.Date("2005-01-04")
-  endT <- Sys.Date()
-  # endT <- as.Date("2005-02-27")
+lcdb.build.EE_CroxSecReg <- function(begT,endT,factorLists){
+  if(missing(begT)){
+    begT <- as.Date("2005-01-04")
+  }
+  if(missing(endT)){
+    endT <- Sys.Date()-1
+  }
+  if(missing(factorLists)){
+    factorLists = buildFactorLists(
+      buildFactorList(factorFun = "gf.ln_mkt_cap", factorStd = "norm", factorNA = "na"))
+  }
   RebDates <- getRebDates(begT,endT,rebFreq = "day")
-  TS <- getTS(RebDates, indexID = "EI000985")
-  TSF <- getTSF(TS, factorFun = "gf.ln_mkt_cap")
-  TSFR <- getTSR(TSF)
-  yy <- unique(lubridate::year(TSFR$date))
-  for(ii in 1:length(yy)){
-    TSFR_ <- subset(TSFR, lubridate::year(date) == yy[ii])
-    res_list <- reg.TSFR(TSFR_, regType = "glm", glm_wgt = "sqrtFV",
-                         sectorAttr = defaultSectorAttr())
+  monthind <- cut.Date2(RebDates,"month")
+  monthlist <- unique(monthind)
+  loopind <- data.frame(RebDates, monthind)
+  for( ii in 1:(length(monthlist))){
+    cat(rdate2int(as.Date(monthlist[ii])),"\n")
+    loopind_ <- subset(loopind, monthind == monthlist[ii])
+    RebDates_ <- loopind_$RebDates
+    TS_ <- getTS(RebDates_, indexID = "EI000985")
+    res_list <- suppressWarnings(reg.TS(TS = TS_, dure = lubridate::days(1), factorLists = factorLists,
+                                        regType = "glm", glm_wgt = "sqrtFV"))
     finalre <- res_list$res
     finalre <- renameCol(finalre, "res", "err")
     finalre$date <- trday.nearby(finalre$date, by = 1)
@@ -919,6 +989,72 @@ lcdb.build.EE_CroxSecReg <- function(){
   }
   return("Done!")
 }
+
+#' lcdb.update.EE_CroxSecReg
+#'
+#' @export
+lcdb.update.EE_CroxSecReg <- function(begT, endT, factorLists){
+
+  con <- db.local()
+  qr <- paste0("select max(date) from EE_CroxSecReg")
+  begT_lcdb <- dbGetQuery(con, qr)[[1]]
+  dbDisconnect(con)
+  begT_lcdb <- intdate2r(begT_lcdb)
+
+  if(missing(begT)){
+    begT <- begT_lcdb
+  }else{
+    begT <- trday.nearest(begT)
+    if(begT <= begT_lcdb){
+      begT_ <- rdate2int(begT)
+      con <- db.local()
+      qr <- paste0("delete from EE_CroxSecReg
+                   where date >= ", begT_)
+      RSQLite::dbSendQuery(con,qr)
+      RSQLite::dbDisconnect(con)
+      begT <- trday.nearby(begT,by = -1)
+    }else if(begT > begT_lcdb){
+      begT <- begT_lcdb
+    }
+  }
+
+  if(missing(endT)){
+    endT <- Sys.Date() - 1
+    endT <- trday.nearest(endT)
+  }
+
+  if(begT >= endT){
+    return("It's already up-to-date.")
+  }else{
+    if(missing(factorLists)){
+      factorLists = buildFactorLists(
+        buildFactorList(factorFun = "gf.ln_mkt_cap", factorStd = "norm", factorNA = "na"))
+    }
+    begT <- trday.nearby(begT, by = 1)
+    RebDates <- getRebDates(begT,endT,rebFreq = "day")
+    monthind <- cut.Date2(RebDates,"month")
+    monthlist <- unique(monthind)
+    loopind <- data.frame(RebDates, monthind)
+    for( ii in 1:(length(monthlist))){
+      cat(rdate2int(as.Date(monthlist[ii])),"\n")
+      loopind_ <- subset(loopind, monthind == monthlist[ii])
+      RebDates_ <- loopind_$RebDates
+      TS_ <- getTS(RebDates_, indexID = "EI000985")
+      res_list <- suppressWarnings(reg.TS(TS = TS_, dure = lubridate::days(1), factorLists = factorLists,
+                                          regType = "glm", glm_wgt = "sqrtFV"))
+      finalre <- res_list$res
+      finalre <- renameCol(finalre, "res", "err")
+      finalre$date <- trday.nearby(finalre$date, by = 1)
+      finalre$date <- rdate2int(finalre$date)
+      con <- QDataGet::db.local()
+      RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=F,append=T,row.names=F)
+      RSQLite::dbDisconnect(con)
+      gc()
+    }
+    return("Done!")
+  }
+}
+
 
 #' lcdb.build.EE_LeaderStockAlter
 #'
