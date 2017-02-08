@@ -952,19 +952,28 @@ rms.low_F_NP <- function(tsobj){
 #' lcdb.build.EE_CroxSecReg
 #'
 #' @export
-lcdb.build.EE_CroxSecReg <- function(){
-  begT <- as.Date("2005-01-04")
-  endT <- Sys.Date()
-  # endT <- as.Date("2005-02-27")
+lcdb.build.EE_CroxSecReg <- function(begT,endT,factorLists){
+  if(missing(begT)){
+    begT <- as.Date("2005-01-04")
+  }
+  if(missing(endT)){
+    endT <- Sys.Date()-1
+  }
+  if(missing(factorLists)){
+    factorLists = buildFactorLists(
+      buildFactorList(factorFun = "gf.ln_mkt_cap", factorStd = "norm", factorNA = "na"))
+  }
   RebDates <- getRebDates(begT,endT,rebFreq = "day")
-  TS <- getTS(RebDates, indexID = "EI000985")
-  TSF <- getTSF(TS, factorFun = "gf.ln_mkt_cap")
-  TSFR <- getTSR(TSF)
-  yy <- unique(lubridate::year(TSFR$date))
-  for(ii in 1:length(yy)){
-    TSFR_ <- subset(TSFR, lubridate::year(date) == yy[ii])
-    res_list <- reg.TSFR(TSFR_, regType = "glm", glm_wgt = "sqrtFV",
-                         sectorAttr = defaultSectorAttr())
+  monthind <- cut.Date2(RebDates,"month")
+  monthlist <- unique(monthind)
+  loopind <- data.frame(RebDates, monthind)
+  for( ii in 1:(length(monthlist))){
+    cat(rdate2int(as.Date(monthlist[ii])),"\n")
+    loopind_ <- subset(loopind, monthind == monthlist[ii])
+    RebDates_ <- loopind_$RebDates
+    TS_ <- getTS(RebDates_, indexID = "EI000985")
+    res_list <- suppressWarnings(reg.TS(TS = TS_, dure = lubridate::days(1), factorLists = factorLists,
+                                        regType = "glm", glm_wgt = "sqrtFV"))
     finalre <- res_list$res
     finalre <- renameCol(finalre, "res", "err")
     finalre$date <- trday.nearby(finalre$date, by = 1)
@@ -980,6 +989,55 @@ lcdb.build.EE_CroxSecReg <- function(){
   }
   return("Done!")
 }
+
+#' lcdb.update.EE_CroxSecReg
+#'
+#' @export
+lcdb.update.EE_CroxSecReg <- function(endT, factorLists){
+
+  con <- db.local()
+  qr <- paste0("select max(date) from EE_CroxSecReg")
+  begT <- dbGetQuery(con, qr)[[1]]
+  dbDisconnect(con)
+  begT <- intdate2r(begT)
+
+  if(missing(endT)){
+    endT <- Sys.Date() - 1
+    endT <- trday.nearest(endT)
+  }
+
+  if(begT >= endT){
+    return("It's already up-to-date.")
+  }else{
+    if(missing(factorLists)){
+      factorLists = buildFactorLists(
+        buildFactorList(factorFun = "gf.ln_mkt_cap", factorStd = "norm", factorNA = "na"))
+    }
+    RebDates <- getRebDates(begT,endT,rebFreq = "day")
+    monthind <- cut.Date2(RebDates,"month")
+    monthlist <- unique(monthind)
+    loopind <- data.frame(RebDates, monthind)
+    for( ii in 1:(length(monthlist))){
+      cat(rdate2int(as.Date(monthlist[ii])),"\n")
+      loopind_ <- subset(loopind, monthind == monthlist[ii])
+      RebDates_ <- loopind_$RebDates
+      TS_ <- getTS(RebDates_, indexID = "EI000985")
+      res_list <- suppressWarnings(reg.TS(TS = TS_, dure = lubridate::days(1), factorLists = factorLists,
+                                          regType = "glm", glm_wgt = "sqrtFV"))
+      finalre <- res_list$res
+      finalre <- renameCol(finalre, "res", "err")
+      finalre$date <- trday.nearby(finalre$date, by = 1)
+      finalre$date <- rdate2int(finalre$date)
+      con <- QDataGet::db.local()
+      RSQLite::dbWriteTable(con,'EE_CroxSecReg',finalre,overwrite=F,append=T,row.names=F)
+      RSQLite::dbDisconnect(con)
+      gc()
+    }
+    return("Done!")
+  }
+}
+
+
 
 #' lcdb.build.EE_LeaderStockAlter
 #'
