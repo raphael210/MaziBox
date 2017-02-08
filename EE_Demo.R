@@ -5,11 +5,13 @@
 # There are a few data sheets that is downloaded from Wind database. These datasets will be organized and stored in the local database and be prepared for further use.
 library(WindR)
 w.start()
+# build raw data sheets
 lcdb.build.EE_employeeplan()
 lcdb.build.EE_LeaderStockAlter()
+lcdb.build.EE_ForecastAndReport()
+# build event sets and scores sheets
 lcdb.build.EE_pool()
 lcdb.build.EE_score()
-lcdb.build.EE_score_sum()
 
 # ----- Part I. Event dffect research -----
 # The key object in event effect analysis is ETS, which is simply a TS object with a different name in order to distinguish it form the ordinary TS.
@@ -25,6 +27,7 @@ ETS <- ets.leadersell()
 ETS <- ets.leaderbuy_largebuy()
 ETS <- ets.leadersell_largesell()
 ETS <- ets.employee_plan()
+ETS <- ets.forecast()
 
 # Obtain the "Daily Abnormal Return" in the event research window.
 # win1 represents the days before the event date, and win2 represents the days after the event date. Both arguments are positive int.
