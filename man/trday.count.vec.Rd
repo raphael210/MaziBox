@@ -2,7 +2,7 @@
 % Please edit documentation in R/funset.R
 \name{trday.count.vec}
 \alias{trday.count.vec}
-\title{Count trading days trough vectors.}
+\title{Count trading days by passing vector inputs.}
 \usage{
 trday.count.vec(begTvec, endTvec)
 }
@@ -12,9 +12,9 @@ trday.count.vec(begTvec, endTvec)
 \item{endTvec}{endT vector.}
 }
 \value{
-vector.
+A vector which each row represents the lag of days between begT and endT.
 }
 \description{
-Count trading days trough vectors.
+Count trading days by passing vector inputs.
 }
 
