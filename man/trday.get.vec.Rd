@@ -2,7 +2,7 @@
 % Please edit documentation in R/funset.R
 \name{trday.get.vec}
 \alias{trday.get.vec}
-\title{Get tradingday through vectors.}
+\title{Get tradingday by passing in vector inputs.}
 \usage{
 trday.get.vec(begTvec, endTvec)
 }
@@ -12,9 +12,9 @@ trday.get.vec(begTvec, endTvec)
 \item{endTvec}{endT vector.}
 }
 \value{
-vector
+A vector that row-bind all the trading days between begT and endT.
 }
 \description{
-Get tradingday through vectors.
+Get tradingday by passing in vector inputs.
 }
 

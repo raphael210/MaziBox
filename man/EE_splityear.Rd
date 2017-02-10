@@ -4,14 +4,14 @@
 \alias{EE_splityear}
 \title{Split and return the plots of each year}
 \usage{
-EE_splityear(TSErr, everyyear = FALSE, breakwindow = FALSE)
+EE_splityear(TSErr, everyyear = FALSE, breakwindow = FALSE, bmk = NULL)
 }
 \arguments{
 \item{TSErr}{The TSErr object.}
 
 \item{everyyear}{Logical value. Whether to return the plot of details in each year.}
 
-\item{breakwindow}{Logical value. Whether to keep the event window complete. default is false.}
+\item{breakwindow}{Logical value. Whether to keep the event window complete or forcely cut the object by year. Default is false.}
 }
 \value{
 A list containing plots and data.
