@@ -187,40 +187,7 @@ trday.count.vec <- function(begTvec, endTvec){
   return(temp$diff)
 }
 
-#' plug in stockID and return indexID
-#'
-#' @param stocklist vector.
-#' @return indexlist, vector.
-#' @export
-stock2index <- function(stocklist){
-  # step 1
-  key.df <- rbind(buildkey(kkey = "Standard"),
-                  buildkey(kkey = "Industry", decode = 1804),
-                  buildkey(kkey = "IfPerformed"),
-                  buildkey(kkey = "FirstIndustryCode"),
-                  buildkey(kkey = "FirstIndustryName"))
-  tmpdat <- EE_getETSfromJY("LC_ExgIndustry",key.df, stock.column = "CompanyCode", stock.decode = "CompanyCode")
-  tmpdat <- subset(tmpdat, Standard == 24 & IfPerformed == 1)
-  tmpdat <- renameCol(tmpdat, "FirstIndustryCode", "IndustryCode")
-  # step 2
-  tmpdat2 <- queryAndClose.odbc(db.jy(),
-                                "select A.*, B.SecuCode
-                                from JYDB.dbo.LC_CorrIndexIndustry A,
-                                JYDB.dbo.SecuMain B
-                                where A.IndexCode = B.InnerCode")
-  tmpdat2 <- subset(tmpdat2, IndustryStandard == 24 , select = c("IndexCode","IndustryCode", "IndexState","SecuCode"))
-  tmpdat2 <- subset(tmpdat2, substr(SecuCode,1,3) == "801")
-  # merge
-  re <- merge(tmpdat, tmpdat2, by = c("IndustryCode"), all.x = TRUE)
-  re$SecuCode <- paste0("EI", re$SecuCode)
-  # merge
-  rawdat <- data.frame("stockID" = stocklist)
-  re2 <- merge(rawdat, re, by = "stockID" , all.x = T)
-  return(re2$SecuCode)
-}
-
 # ----- Event Effect Research -----
-
 #' build key for key data frame
 #'
 #' @param kkey The column name.
@@ -1291,7 +1258,21 @@ lcdb.build.EE_pool <- function(){
 #'
 #' @export
 lcdb.build.EE_ForecastAndReport <- function(){
+  # RPTSQ
+  sq1 <- seq(2000,lubridate::year(Sys.Date())+1)
+  sq2 <- c('0331','0630','0930','1231')
+  rptsq <- c()
+  for(i in sq1){
+    rptsq <- c(rptsq, paste0(i,sq2))
+  }
+  rptsq <- as.integer(rptsq)
+  # step 0
+  TD_ <- rdate2int(Sys.Date())
+  CUT_ <- rptsq[rptsq >= TD_][1]
+  rptsq <- rptsq[rptsq <= CUT_]
+  fct0 <- data.frame("enddate" = rptsq)
   stocklist <- getIndexComp("EI000985")
+  # step 1
   funchar = "infoarray(128)"
   tmpfile <- stockID2stockID(stocklist,from="local",to="ts")
   tmpcsv <- tempfile(fileext=".csv")
@@ -1310,31 +1291,47 @@ lcdb.build.EE_ForecastAndReport <- function(){
                   RestoreSystemParameters(oV);
                   return result;
                   ')
-  fct <- tsRemoteExecute(qrstr)
-  for( i in 1:length(fct)){
-    fct[[i]] <- plyr::ldply(fct[[i]], unlist)
-    fct[[i]]$stockID <- stocklist[i]
+  fct1 <- tsRemoteExecute(qrstr)
+  for( i in 1:length(fct1)){
+    fct1[[i]] <- plyr::ldply(fct1[[i]], unlist)
+    fct1[[i]]$stockID <- stocklist[i]
   }
-  fct <- data.table::rbindlist(fct)
-  colnames(fct) <- c("enddate",
-                     "FirstReservedDate","FirstChangeDate","SecondChangeDate",
-                     "ThirdChangeDate","ActualDate",
-                     "FirstReservePublDate","FirstChangePublDate","SecondChangePublDate",
-                     "ThirdChangePublDate","ActualPublDate",
-                     "stockID")
-
+  fct1 <- data.table::rbindlist(fct1)
+  colnames(fct1) <- c("enddate",
+                      "FirstReservedDate","FirstChangeDate","SecondChangeDate",
+                      "ThirdChangeDate","ActualDate",
+                      "FirstReservePublDate","FirstChangePublDate","SecondChangePublDate",
+                      "ThirdChangePublDate","ActualPublDate",
+                      "stockID")
+  # step 2
   qr <- paste("select t.*, 'EQ'+s.SecuCode stockID,
-            convert(varchar(8),t.InfoPublDate,112) date,
-            convert(varchar(8),t.EndDate,112) enddate
-            from dbo.LC_PerformanceForecast t,
-            dbo.SecuMain s
-            where t.CompanyCode = s.CompanyCode
-            and s.SecuCategory in (1,2)")
+              convert(varchar(8),t.InfoPublDate,112) date,
+              convert(varchar(8),t.EndDate,112) enddate
+              from dbo.LC_PerformanceForecast t,
+              dbo.SecuMain s
+              where t.CompanyCode = s.CompanyCode
+              and s.SecuCategory in (1,2)")
   fct2 <- queryAndClose.odbc(db.jy(), qr)
-  fct2 <- dplyr::select(fct2, -ID, -InfoPublDate, -EndDate)
-
-  res <- merge(fct2, fct, by = c("stockID","enddate"), all = TRUE)
-
+  fct2 <- dplyr::select(fct2, -ID, -InfoPublDate, -EndDate, -CompanyCode)
+  fct2 <- subset(fct2, substr(stockID,1,3) != "EQ9")
+  fct2 <- subset(fct2, substr(stockID,1,3) != "EQ8")
+  fct2 <- subset(fct2, substr(stockID,1,3) != "EQX")
+  # step 3
+  fct3 <- subset(fct2, select = c("stockID","date","enddate","ForcastType","EGrowthRateFloor","EGrowthRateCeiling"))
+  fct3 <- dplyr::arrange(fct3, enddate, stockID, desc(date))
+  fct3 <- fct3[!duplicated(fct3[,c("stockID","enddate")]),]
+  colnames(fct3) <- c("stockID","L.date","enddate","L.ForcastType","L.EGrowthRateFloor","L.EGrowthRateCeiling")
+  ind <- match(fct3$enddate, rptsq)
+  ind <- ind + 1
+  fct3$enddate <- rptsq[ind]
+  fct3 <- fct3[!is.na(fct3$enddate),]
+  # merging
+  res <- merge(fct0, fct1, by = c("enddate"), all = TRUE)
+  res <- merge(res, fct2, by = c("stockID","enddate"), all = TRUE)
+  res <- merge(res, fct3, by = c("stockID","enddate"), all = TRUE)
+  res <- dplyr::arrange(res, stockID, enddate)
+  res <- res[!is.na(res$stockID),]
+  # output
   con <- QDataGet::db.local()
   RSQLite::dbWriteTable(con,'EE_ForecastAndReport',res,overwrite=T,append=F,row.names=F)
   RSQLite::dbDisconnect(con)
@@ -1346,29 +1343,32 @@ lcdb.build.EE_ForecastAndReport <- function(){
 #' rpt.unfroz_show
 #'
 #' @export
-rpt.unfroz_show <- function(){
+rpt.unfroz_show <- function(ob_win=10){
+
   ets0 <- ets.unfroz()
   colnames(ets0) <- c("unfroz_date", "stockID")
   ets0 <- subset(ets0, unfroz_date >= Sys.Date())
 
   TD <- Sys.Date()
-  ets0$begT <- trday.nearby(ets0$unfroz_date, -10)
+  ets0$begT <- trday.nearby(ets0$unfroz_date, -ob_win)
   ets0 <- subset(ets0, begT <= Sys.Date())
-  ets0$date_end <- trday.nearby(TD,-1)
-  temp_ <- getPeriodrtn(stockID = ets0$stockID, begT = ets0$begT, endT = ets0$date_end)
+  ets0$endT <- trday.nearby(TD,-1)
+  temp_ <- getPeriodrtn(stockID = ets0$stockID, begT = trday.nearby(ets0$begT,-1), endT = ets0$endT)
+  temp_$begT <- trday.nearby(temp_$begT,1)
   temp_ <- renameCol(temp_, "periodrtn", "periodrtn_stock")
-  temp_$indexID <- stock2index(temp_$stockID)
+  temp_$indexID <- stockID2indexID(stockID = temp_$stockID)$indexID
   temp_$periodrtn_index <- 0
   for( i in 1:nrow(temp_)){
-    rtn <- getIndexQuote(stocks = temp_$indexID[i], begT = temp_$begT[i], endT = temp_$endT[i], variables = "pct_chg")
+    if(temp_$begT[i] > temp_$endT[i]) next
+    rtn <- getIndexQuote(stocks = temp_$indexID[i], begT = temp_$begT[i], endT = temp_$endT[i], variables = "pct_chg", datasrc = "jy")
     temp_$periodrtn_index[i] <- sum(rtn$pct_chg)
   }
-  re <- merge(ets0, temp_, by = c("stockID","begT"))
-  re <- dplyr::select(re, -date_end, -endT)
-  re <- renameCol(re, src = "periodrtn_stock", tgt = "acc_pct_chg_since_tracing")
-  re <- renameCol(re, src = "begT", tgt = "tracing_start_date")
-  re$acc_pct_chg_since_tracing <- fillna(re$acc_pct_chg_since_tracing, "zero")
-  re$acc_pct_chg_since_tracing <- round(re$acc_pct_chg_since_tracing, 4)
-  re <- dplyr::arrange(re, tracing_start_date)
+  re <- merge(ets0, temp_, by = c("stockID","begT","endT"))
+  re <- dplyr::select(re, -endT)
+  re$periodrtn_stock <- fillna(re$periodrtn_stock, "zero")
+  re$periodrtn_stock <- round(re$periodrtn_stock, 4)
+  re <- dplyr::arrange(re, begT)
   return(re)
 }
+
+
