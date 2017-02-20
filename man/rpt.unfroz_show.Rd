@@ -4,7 +4,7 @@
 \alias{rpt.unfroz_show}
 \title{rpt.unfroz_show}
 \usage{
-rpt.unfroz_show()
+rpt.unfroz_show(ob_win = 10)
 }
 \description{
 rpt.unfroz_show
