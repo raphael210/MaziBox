@@ -1343,29 +1343,32 @@ lcdb.build.EE_ForecastAndReport <- function(){
 #' rpt.unfroz_show
 #'
 #' @export
-rpt.unfroz_show <- function(){
+rpt.unfroz_show <- function(ob_win=10){
+
   ets0 <- ets.unfroz()
   colnames(ets0) <- c("unfroz_date", "stockID")
   ets0 <- subset(ets0, unfroz_date >= Sys.Date())
 
   TD <- Sys.Date()
-  ets0$begT <- trday.nearby(ets0$unfroz_date, -10)
+  ets0$begT <- trday.nearby(ets0$unfroz_date, -ob_win)
   ets0 <- subset(ets0, begT <= Sys.Date())
-  ets0$date_end <- trday.nearby(TD,-1)
-  temp_ <- getPeriodrtn(stockID = ets0$stockID, begT = ets0$begT, endT = ets0$date_end)
+  ets0$endT <- trday.nearby(TD,-1)
+  temp_ <- getPeriodrtn(stockID = ets0$stockID, begT = trday.nearby(ets0$begT,-1), endT = ets0$endT)
+  temp_$begT <- trday.nearby(temp_$begT,1)
   temp_ <- renameCol(temp_, "periodrtn", "periodrtn_stock")
-  temp_$indexID <- stock2index(stockID = temp_$stockID)$SecuCode
+  temp_$indexID <- stockID2indexID(stockID = temp_$stockID)$indexID
   temp_$periodrtn_index <- 0
   for( i in 1:nrow(temp_)){
-    rtn <- getIndexQuote(stocks = temp_$indexID[i], begT = temp_$begT[i], endT = temp_$endT[i], variables = "pct_chg")
+    if(temp_$begT[i] > temp_$endT[i]) next
+    rtn <- getIndexQuote(stocks = temp_$indexID[i], begT = temp_$begT[i], endT = temp_$endT[i], variables = "pct_chg", datasrc = "jy")
     temp_$periodrtn_index[i] <- sum(rtn$pct_chg)
   }
-  re <- merge(ets0, temp_, by = c("stockID","begT"))
-  re <- dplyr::select(re, -date_end, -endT)
-  re <- renameCol(re, src = "periodrtn_stock", tgt = "acc_pct_chg_since_tracing")
-  re <- renameCol(re, src = "begT", tgt = "tracing_start_date")
-  re$acc_pct_chg_since_tracing <- fillna(re$acc_pct_chg_since_tracing, "zero")
-  re$acc_pct_chg_since_tracing <- round(re$acc_pct_chg_since_tracing, 4)
-  re <- dplyr::arrange(re, tracing_start_date)
+  re <- merge(ets0, temp_, by = c("stockID","begT","endT"))
+  re <- dplyr::select(re, -endT)
+  re$periodrtn_stock <- fillna(re$periodrtn_stock, "zero")
+  re$periodrtn_stock <- round(re$periodrtn_stock, 4)
+  re <- dplyr::arrange(re, begT)
   return(re)
 }
+
+
