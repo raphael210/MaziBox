@@ -368,7 +368,7 @@ EE_Plot <- function(TSErr, bmk = NULL){
     ggplot2::geom_vline(xintercept = -0.5, color = 'red', linetype = 2)+
     ggplot2::ylab("Abnormal Return")+ggplot2::xlab("Date Series")
   print(p0)
-  cat("Press any key to continue")
+  cat("Press ENTER to continue")
   line <- readline()
   if(!is.null(bmk)){
     tmpbmk <- dplyr::group_by(bmk, No)
@@ -716,6 +716,42 @@ ets.leaderbuy <- function(){
   tmpdat2$date <- QUtility::intdate2r(tmpdat2$date)
   tmpdat2 <- dplyr::arrange(tmpdat2, date, stockID)
   return(tmpdat2)
+}
+
+#' get ETS of EQ002 forecast strategy.
+#'
+#' @return ETS object.
+#' @export
+ets.EQ002_forecast <- function(){
+
+  con <- db.local()
+  tmpdat <- dbGetQuery(con, "select * from EE_ForecastAndReport")
+  dbDisconnect(con)
+
+  tmpdat <- subset(tmpdat, substr(stockID,1,5) == "EQ002")
+  ind <- (tmpdat$EGrowthRateFloor > tmpdat$L.EGrowthRateFloor) & (tmpdat$EGrowthRateCeiling > tmpdat$L.EGrowthRateCeiling)
+  ind[is.na(ind)] <- FALSE
+  tmpdat$flag <- 0
+  tmpdat$flag[ind] <- tmpdat$flag[ind] + 1
+
+  tmpdat_ <- subset(tmpdat, flag == 1 & ForcastType == 4 & ForecastObject == 10)
+  tmpdat_ <- dplyr::arrange(tmpdat_, stockID, enddate, date)
+  tmpdat_ <- tmpdat_[!duplicated(tmpdat_[,c("stockID","enddate")]),]
+
+  re <- tmpdat_[,c("stockID","FirstReservedDate")]
+  colnames(re) <- c("stockID","date")
+  tmpdat_$FirstChangeDate <- fillna(tmpdat_$FirstChangeDate, "zero")
+  tmpdat_$SecondChangeDate <- fillna(tmpdat_$SecondChangeDate, "zero")
+  tmpdat_$ThirdChangeDate <- fillna(tmpdat_$ThirdChangeDate, "zero")
+  re$date[tmpdat_$FirstChangeDate > 0] <- tmpdat_$FirstChangeDate[tmpdat_$FirstChangeDate > 0]
+  re$date[tmpdat_$SecondChangeDate > 0] <- tmpdat_$SecondChangeDate[tmpdat_$SecondChangeDate > 0]
+  re$date[tmpdat_$ThirdChangeDate > 0] <- tmpdat_$ThirdChangeDate[tmpdat_$ThirdChangeDate > 0]
+
+  re <- subset(re, date > 20080000 & date < 20170000)
+  re$date <- intdate2r(re$date)
+  re <- re[!duplicated(re),]
+  re$date <- trday.nearby(re$date, -20)
+  return(re)
 }
 
 #' get ETS of leader selling stocks a lot within a few times.
@@ -1329,8 +1365,16 @@ lcdb.build.EE_ForecastAndReport <- function(){
   res <- merge(fct0, fct1, by = c("enddate"), all = TRUE)
   res <- merge(res, fct2, by = c("stockID","enddate"), all = TRUE)
   res <- merge(res, fct3, by = c("stockID","enddate"), all = TRUE)
-  res <- dplyr::arrange(res, stockID, enddate)
   res <- res[!is.na(res$stockID),]
+  # organize
+  col1 <- c("stockID","enddate","date")
+  col2 <- setdiff(colnames(res), col1)
+  res <- res[,c(col1,col2)]
+  res <- dplyr::arrange(res, stockID, enddate, date)
+  # fixation
+  dupind <- (1:nrow(res))[duplicated(res[,c("stockID","enddate")])]
+  dupind2 <- dupind[res[dupind,c("date")] > res[dupind-1, c("date")]]
+  res[dupind2,c("L.date","L.ForcastType","L.EGrowthRateFloor","L.EGrowthRateCeiling")] = res[dupind2-1, c("date","ForcastType","EGrowthRateFloor","EGrowthRateCeiling")]
   # output
   con <- QDataGet::db.local()
   RSQLite::dbWriteTable(con,'EE_ForecastAndReport',res,overwrite=T,append=F,row.names=F)
