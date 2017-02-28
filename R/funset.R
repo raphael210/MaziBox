@@ -722,7 +722,7 @@ ets.leaderbuy <- function(){
 #'
 #' @return ETS object.
 #' @export
-ets.EQ002_forecast <- function(){
+ets.EQ002_forecast <- function(ob_win = 20, withlatest = FALSE){
 
   con <- db.local()
   tmpdat <- dbGetQuery(con, "select * from EE_ForecastAndReport")
@@ -747,10 +747,16 @@ ets.EQ002_forecast <- function(){
   re$date[tmpdat_$SecondChangeDate > 0] <- tmpdat_$SecondChangeDate[tmpdat_$SecondChangeDate > 0]
   re$date[tmpdat_$ThirdChangeDate > 0] <- tmpdat_$ThirdChangeDate[tmpdat_$ThirdChangeDate > 0]
 
-  re <- subset(re, date > 20080000 & date < 20170000)
+  if(withlatest){
+    re <- subset(re, date > 20080000)
+  }else{
+    re <- subset(re, date > 20080000 & date < 20170000)
+  }
   re$date <- intdate2r(re$date)
   re <- re[!duplicated(re),]
-  re$date <- trday.nearby(re$date, -20)
+  re$date <- trday.nearby(re$date, -ob_win)
+  re <- re[,c("date","stockID")]
+  re <- dplyr::arrange(re, date, stockID)
   return(re)
 }
 
@@ -1415,4 +1421,37 @@ rpt.unfroz_show <- function(ob_win=10){
   return(re)
 }
 
-
+#' rpt.EQ002_show
+#'
+#' @export
+rpt.EQ002_show <- function(ob_win = 20, wgtmax = 0.05){
+  begT <- as.Date("2016-01-04")
+  endT <- trday.nearby(Sys.Date(), -1)
+  datelist <- getRebDates(begT,endT,rebFreq = "day")
+  ets <- ets.EQ002_forecast(withlatest = TRUE, ob_win = ob_win)
+  ets$enddate <- trday.nearby(ets$date, ob_win)
+  port <- list()
+  rtn <- c()
+  for( i in 1:length(datelist)){
+    TD <- datelist[i]
+    TS_ <- subset(ets, date <= TD & enddate >= TD, select = stockID)
+    if(nrow(TS_)==0) next
+    TS_$date <- datelist[i]
+    TSR_ <- TS.getTech(TS_,variables = "pct_chg")
+    TSR_$wgt <- 1/nrow(TS_)
+    TSR_$wgt[TSR_$wgt > wgtmax] <- wgtmax
+    TSR_$pct_chg <- fillna(TSR_$pct_chg, "zero")
+    port[[i]] <- TSR_
+    rtn[i] <- sum(TSR_$pct_chg * TSR_$wgt)
+  }
+  # rtn
+  rtn <- fillna(rtn,"zero")
+  re <- xts::as.xts(rtn, order.by = datelist)
+  # lastport
+  lastport <- port[[length(port)]]
+  # port summary
+  lastday_smry <- data.frame("position" = sum(lastport$wgt),"rtn" = sum(lastport$pct_chg * lastport$wgt))
+  # output
+  relist <- list("rtn" = re, "lastport" = lastport, "lastday_smry" = lastday_smry)
+  return(relist)
+}
