@@ -26,4 +26,7 @@ re <- ladderNAV(assetRtn,ruledf)
 rebalance <- '2 years'
 re <- ladderNAV(assetRtn,ruledf,rebalance)
 }
+\author{
+han.qian
+}
 

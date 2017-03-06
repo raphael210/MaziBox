@@ -18,6 +18,7 @@
 #' @param ruledf a data frame for position rule.
 #' @param rebalance rebalance frequency, default value is NULL.
 #' @return a data frame, containing return,postion,nav.
+#' @author han.qian
 #' @export
 #' @examples
 #' assetRtn <- rtndemo
@@ -1424,9 +1425,9 @@ rpt.unfroz_show <- function(ob_win=10){
 #' rpt.EQ002_show
 #'
 #' @export
-rpt.EQ002_show <- function(ob_win = 20, wgtmax = 0.05){
-  begT <- as.Date("2016-01-04")
-  endT <- trday.nearby(Sys.Date(), -1)
+rpt.EQ002_show <- function(begT=as.Date("2013-01-04"),
+                           endT=Sys.Date()-1,
+                           ob_win = 20, wgtmax = 0.05){
   datelist <- getRebDates(begT,endT,rebFreq = "day")
   ets <- ets.EQ002_forecast(withlatest = TRUE, ob_win = ob_win)
   ets$enddate <- trday.nearby(ets$date, ob_win)
@@ -1447,11 +1448,10 @@ rpt.EQ002_show <- function(ob_win = 20, wgtmax = 0.05){
   # rtn
   rtn <- fillna(rtn,"zero")
   re <- xts::as.xts(rtn, order.by = datelist)
-  # lastport
-  lastport <- port[[length(port)]]
-  # port summary
-  lastday_smry <- data.frame("position" = sum(lastport$wgt),"rtn" = sum(lastport$pct_chg * lastport$wgt))
   # output
-  relist <- list("rtn" = re, "lastport" = lastport, "lastday_smry" = lastday_smry)
+  port <- data.table::rbindlist(port)
+  relist <- list("rtn" = re, "port" = port)
   return(relist)
 }
+
+
