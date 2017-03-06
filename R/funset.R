@@ -1397,7 +1397,7 @@ rpt.unfroz_show <- function(ob_win=10){
 
   ets0 <- ets.unfroz()
   colnames(ets0) <- c("unfroz_date", "stockID")
-  ets0 <- subset(ets0, unfroz_date >= Sys.Date())
+  ets0 <- subset(ets0, unfroz_date >= trday.nearby(Sys.Date(),-1))
 
   TD <- Sys.Date()
   ets0$begT <- trday.nearby(ets0$unfroz_date, -ob_win)
