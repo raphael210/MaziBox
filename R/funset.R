@@ -581,6 +581,7 @@ subsetCol <- function(tmpdat, colchar, subsetcode){
 getETS <- function(tsobj, EventSet = NULL, win = 20){
 
   ts <- tsobj[,c("date","stockID")]
+  ts$date <- trday.nearby(ts$date, -1)
   datelist <- unique(ts$date)
   # load all
   con <- QDataGet::db.local()
@@ -610,6 +611,7 @@ getETS <- function(tsobj, EventSet = NULL, win = 20){
     finalre[[i]] <- tmppool
   }
   finalre <- data.table::rbindlist(finalre)
+  finalre$date <- trday.nearby(finalre$date, 1)
   return(finalre)
 }
 
