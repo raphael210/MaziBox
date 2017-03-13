@@ -4,7 +4,7 @@
 \alias{ets.unfroz}
 \title{get ETS of stocks unfrozing}
 \usage{
-ets.unfroz()
+ets.unfroz(withP = FALSE)
 }
 \value{
 ETS object.

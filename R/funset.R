@@ -572,16 +572,27 @@ subsetCol <- function(tmpdat, colchar, subsetcode){
 
 # ----- ETS factor function -----
 
+#' return default event set
+#'
+#' @return vector
+#' @export
+EE_DefaultEventSet <- function(){
+  event <- c("ets.employeeplan","ets.unfroz","ets.leaderbuy","ets.EQ002_forecast")
+  dir <- c(1,-1,1,-1)
+  re <- data.frame(event, dir)
+  return(re)
+}
+
 #' plug in ts object and return with ets object.
 #'
 #' @param tsobj A ts object.
 #' @param EventSet a vector to specify the events. If null, all the events in DefaultEventSet will be applied to use.
 #' @return A data frame with date, stockID, event and the lag of days.
 #' @export
-getETS <- function(tsobj, EventSet = NULL, win = 20){
+getETS <- function(tsobj, EventSet = NULL, win = 20, naomit = TRUE){
 
   ts <- tsobj[,c("date","stockID")]
-  ts$date <- trday.nearby(ts$date, -1)
+  ts$date <- trday.nearby(ts$date, 1)
   datelist <- unique(ts$date)
   # load all
   con <- QDataGet::db.local()
@@ -598,9 +609,10 @@ getETS <- function(tsobj, EventSet = NULL, win = 20){
     startdate <- QDataGet::trday.nearby(datelist[i], by = -win)
     enddate <- QDataGet::trday.nearby(datelist[i], by = win)
     # normal case
-    tmppool1 <- subset(EE_pool, date >= startdate & date <= datelist[i] & event != "ets.unfroz")
+    tmppool1 <- subset(EE_pool, date >= startdate & date <= datelist[i] & dir == 1)
     # special case : unfroz
-    tmppool2 <- subset(EE_pool, date >= datelist[i]-1 & date <= enddate & event == "ets.unfroz")
+    tmppool2 <- subset(EE_pool, date >= datelist[i] & date <= enddate & dir == -1)
+    # bind
     tmppool <- rbind(tmppool1,tmppool2)
     if(nrow(tmppool) == 0) next
     tmptmp <- rep(datelist[i], nrow(tmppool))
@@ -611,8 +623,11 @@ getETS <- function(tsobj, EventSet = NULL, win = 20){
     finalre[[i]] <- tmppool
   }
   finalre <- data.table::rbindlist(finalre)
-  finalre$date <- trday.nearby(finalre$date, 1)
-  return(finalre)
+  finalre$date <- trday.nearby(finalre$date, -1)
+  # output
+  finalre2 <- merge.x(tsobj, finalre, by = c("date","stockID"))
+  if(naomit) {finalre2 <- na.omit(finalre2)}
+  return(finalre2)
 }
 
 #' plug in ts object and return with ets score.
@@ -644,7 +659,7 @@ getETSscore <- function(tsobj, EventSet = NULL, rollwin = 20){
   ####
 
   ts <- tsobj[,c("date","stockID")]
-  ets <- getETS(ts, EventSet = EventSet, win = rollwin)
+  ets <- getETS(ts, EventSet = EventSet, win = rollwin, naomit = TRUE)
   ets <- QUtility::renameCol(ets, "diff", "No")
 
   re <- merge(ets, EE_score_sum, by = c("event","No"))
@@ -662,10 +677,14 @@ getETSscore <- function(tsobj, EventSet = NULL, rollwin = 20){
 #'
 #' @return ETS object.
 #' @export
-ets.unfroz <- function(){
+ets.unfroz <- function(withP = FALSE){
   df_jy <- EE_getETSfromJY(date.column = "StartDateForFloating", SheetName = "LC_SharesFloatingSchedule", key.df = data.frame("kkey"=c("Proportion1","SourceType"),"decode"=c(NA,NA),"isSE"=c(NA,NA)))
   df_jy <- subset(df_jy, Proportion1>5 & SourceType %in% c(24,25))
-  ETS <- subset(df_jy, select = c("date","stockID"))
+  if(withP){
+    ETS <- subset(df_jy, select = c("date","stockID","Proportion1"))
+  }else{
+    ETS <- subset(df_jy, select = c("date","stockID"))
+  }
   return(ETS)
 }
 
@@ -965,7 +984,7 @@ rms.all <- function(tsobj){
 rms.unfroz <- function(tsobj){
   ts <- tsobj[,c("date","stockID")]
   endT <- max(ts$date)
-  ETS <- ets.unfroz()
+  ETS <- ets.unfroz(withP = FALSE)
   ETS <- subset(ETS, date <= endT + 30)
   ETS <- EE_ExpandETS(ETS, win1 = 25, win2 = 1)
   TS2 <- subset(ETS, select = c("date","stockID"))
@@ -1266,12 +1285,13 @@ lcdb.update.EE_employeeplan <- function(){
 #' @export
 lcdb.build.EE_score <- function(){
   re <- list()
-  for(i in 1:length(DefaultEventSet)){
-    ets <- eval(call(DefaultEventSet[i]))
+  DefaultEventSet <- EE_DefaultEventSet()
+  for(i in 1:nrow(DefaultEventSet)){
+    ets <- eval(call(as.character(DefaultEventSet$event[i])))
     ets <- subset(ets, date <= Sys.Date())
     tserr <- EE_GetTSErr(ets, win1 = 60, win2 = 60)
     re[[i]] <- EE_table(tserr)
-    re[[i]]$event <- DefaultEventSet[i]
+    re[[i]]$event <- DefaultEventSet$event[i]
   }
   finalre <- data.table::rbindlist(re)
   con <- QDataGet::db.local()
@@ -1285,9 +1305,11 @@ lcdb.build.EE_score <- function(){
 #' @export
 lcdb.build.EE_pool <- function(){
   re <- list()
-  for(i in 1:length(DefaultEventSet)){
-    re[[i]] <- eval(call(DefaultEventSet[i]))
-    re[[i]]$event <- DefaultEventSet[i]
+  DefaultEventSet <- EE_DefaultEventSet()
+  for(i in 1:nrow(DefaultEventSet)){
+    re[[i]] <- eval(call(as.character(DefaultEventSet$event[i])))
+    re[[i]]$event <- DefaultEventSet$event[i]
+    re[[i]]$dir <- DefaultEventSet$dir[i]
   }
   finalre <- data.table::rbindlist(re)
   finalre$date <- QUtility::rdate2int(finalre$date)
@@ -1397,8 +1419,8 @@ lcdb.build.EE_ForecastAndReport <- function(){
 #' @export
 rpt.unfroz_show <- function(ob_win=10){
 
-  ets0 <- ets.unfroz()
-  colnames(ets0) <- c("unfroz_date", "stockID")
+  ets0 <- ets.unfroz(withP = TRUE)
+  colnames(ets0) <- c("unfroz_date", "stockID", "proportion")
   ets0 <- subset(ets0, unfroz_date >= trday.nearby(Sys.Date(),-1))
 
   TD <- Sys.Date()
@@ -1419,6 +1441,7 @@ rpt.unfroz_show <- function(ob_win=10){
   re <- dplyr::select(re, -endT)
   re$periodrtn_stock <- fillna(re$periodrtn_stock, "zero")
   re$periodrtn_stock <- round(re$periodrtn_stock, 4)
+  re$proportion <- round(re$proportion, 2)
   re <- dplyr::arrange(re, begT)
   return(re)
 }

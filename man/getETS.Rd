@@ -4,7 +4,7 @@
 \alias{getETS}
 \title{plug in ts object and return with ets object.}
 \usage{
-getETS(tsobj, EventSet = NULL, win = 20)
+getETS(tsobj, EventSet = NULL, win = 20, naomit = TRUE)
 }
 \arguments{
 \item{tsobj}{A ts object.}
