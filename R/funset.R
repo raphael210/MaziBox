@@ -320,24 +320,31 @@ EE_ExpandETS <- function(ets, win1, win2){
 #' ETS <- data.frame(date, stockID)
 #' TSErr <- EE_GetTSErr(ETS)
 #' EE_Plot(TSErr)
-EE_GetTSErr <- function(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60) {
+EE_GetTSErr <- function(ETS, db = c("EE_CroxSecReg","pct_chg"), win1 = 20, win2 = 60) {
   QUtility::check.colnames(ETS, c('date','stockID'))
+  db <- match.arg(db)
   TargetTS <- EE_ExpandETS(ETS, win1 = win1, win2 = win2)
-  TargetTS$date <- QUtility::rdate2int(TargetTS$date)
-  con <- QDataGet::db.local()
-  DBI::dbWriteTable(conn = con, value = TargetTS, name = 'mazi_tmp', overwrite = TRUE, append = FALSE, row.names = FALSE)
-  qr <- paste (
-    "select a.*, b.err
-    from mazi_tmp a
-    left join ", db, " b
-    on a.stockID = b.stockID
-    and a.date = b.date"
-  )
-  finalres <- DBI::dbGetQuery(con, qr)
-  DBI::dbDisconnect(conn = con)
+  if(db == "pct_chg"){
+    finalres <- getTSR(TargetTS)
+    finalres <- finalres[,c("No","date","stockID","periodrtn")]
+    finalres <- renameCol(finalres, "periodrtn", "err")
+  }else{
+    TargetTS$date <- QUtility::rdate2int(TargetTS$date)
+    con <- QDataGet::db.local()
+    DBI::dbWriteTable(conn = con, value = TargetTS, name = 'mazi_tmp', overwrite = TRUE, append = FALSE, row.names = FALSE)
+    qr <- paste (
+      "select a.*, b.err
+      from mazi_tmp a
+      left join ", db, " b
+      on a.stockID = b.stockID
+      and a.date = b.date"
+    )
+    finalres <- DBI::dbGetQuery(con, qr)
+    DBI::dbDisconnect(conn = con)
+    finalres$date <- QUtility::intdate2r(finalres$date)
+  }
   # double check
   QUtility::check.colnames(finalres,c("No","date","stockID","err"))
-  finalres$date <- QUtility::intdate2r(finalres$date)
   # if(cleansing){
   #   finalres$err <- fillna(finalres$err, method = "zero")
   #   finalres <- dplyr::group_by(finalres, No)
