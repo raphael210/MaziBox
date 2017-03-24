@@ -4,13 +4,15 @@
 \alias{EE_table}
 \title{Plug in TSErr object and return the summary table}
 \usage{
-EE_table(TSErr)
+EE_table(TSErr, withSTD = TRUE)
 }
 \arguments{
 \item{TSErr}{The TSErr object}
+
+\item{withSTD}{Logical. Whether to include STD in the return.}
 }
 \value{
-Table.
+Dataframe.
 }
 \description{
 Plug in TSErr object and return the summary table

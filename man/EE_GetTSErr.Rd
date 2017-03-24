@@ -4,7 +4,8 @@
 \alias{EE_GetTSErr}
 \title{Plug in ETS and return a TS object with Err and index.}
 \usage{
-EE_GetTSErr(ETS, db = "EE_CroxSecReg", win1 = 20, win2 = 60)
+EE_GetTSErr(ETS, db = c("EE_CroxSecReg", "pct_chg", "pct_chg_bmk"),
+  win1 = 20, win2 = 60, bmk = NULL)
 }
 \arguments{
 \item{ETS}{A event TS object which includes the event date and the corresponding stock.}
