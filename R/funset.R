@@ -595,6 +595,105 @@ EE_splityear <- function(TSErr, everyyear = FALSE, bmk = NULL){
   return(reslist)
 }
 
+#' turning ets to rtn series
+#'
+#' @param etsfunc ETS function strings, supporting multiple functions. The length of the vector must match the length of the argument ob_win.
+#' @param begT begT
+#' @param endT endT. If NULL, then using latest trading day.
+#' @param univ stock universe. If NULL, considering all stocks. Default NULL.
+#' @param ob_win The holding days window for each ETS strategies.
+#' @param wgtmax The max weight limit for each stock.
+#' @return A list, rtn and port.
+#' @export
+#' @description A function used to turning ets to strategies and roughly calculating returns.
+#' @examples
+#' list1 <- strategy_rtn_rough(etsfunc = "ets.EQ002_forecast", begT = as.Date("2013-01-04"), ob_win = 20)
+#' ggplot.WealthIndex(list1$rtn)
+#' list2 <- strategy_rtn_rough(etsfunc = c("ets.EQ002_forecast","ets.employeeplan"), begT = as.Date("2013-01-04"), ob_win = c(20,20))
+#' ggplot.WealthIndex(list2$rtn)
+strategy_rtn_rough <- function(etsfunc,
+                               begT=as.Date("2013-01-04"),
+                               endT=Sys.Date()-1,
+                               univ = NULL,
+                               ob_win = 20,
+                               wgtmax = 0.05){
+  # stocklist
+  stocklist <- queryAndClose.dbi(db.local(), "select * from SecuMain")
+  stocklist <- subset(stocklist, SecuCategory == 1)
+  stocklist <- sort(unique(stocklist$ID))
+  # input check
+  if(length(etsfunc) != length(ob_win)) stop("length of ob_win must match etsfunc.")
+  # date
+  datelist <- getRebDates(begT,endT,rebFreq = "day")
+  # universe
+  if(!is.null(univ)){
+    TS_raw <- getTS(RebDates = datelist, univ)
+  }else{
+    TS_raw <- getTS(RebDates = datelist, stocks = stocklist)
+  }
+  # split pool
+  DefaultEventSet <- EE_DefaultEventSet()
+  ind_ <- etsfunc %in% DefaultEventSet
+  etsfunc_1 <- etsfunc[ind_]
+  ob_win_1 <- ob_win[ind_]
+  etsfunc_2 <- etsfunc[!ind_]
+  ob_win_2 <- ob_win[!ind_]
+  # pool 1
+  ets1 <- data.frame()
+  if(length(etsfunc_1) > 0){
+    ets1 <- getETS(TS_raw, EventSet = etsfunc_1, ee_win = 0)
+    ets1$date <- trday.nearby(ets1$date, by = 1) # ETS DATE SYSTEM
+    ets1$enddate <- Sys.Date()
+    for(i in 1:length(etsfunc_1)){
+      ind__ <- ets1$event == etsfunc_1[i]
+      ets1$enddate[ind__] = trday.nearby(ets1$date[ind__], by = ob_win_1)
+    }
+    ets1 <- ets1[,c("date","enddate","stockID")]
+  }
+  # pool 2
+  ets2 <- data.frame()
+  if(length(etsfunc_2) > 0){
+    etsfunc_2 <- paste0(etsfunc_2,"()")
+    for(i in 1:length(etsfunc_2)){
+      ets2_ <- eval(parse(text = etsfunc_2[i]))
+      ets2_$enddate <- trday.nearby(ets2_$date, by = ob_win_2[i]) # USE ETS DATE SYSTEM
+      ets2 <- rbind(ets2, ets2_)
+    }
+    # univ
+    ets2 <- ets2[,c("date","enddate","stockID")]
+    ets2 <- merge.x(TS_raw, ets2, by = c("date","stockID"))
+    ets2 <- na.omit(ets2)
+    ets2 <- ets2[,c("date","enddate","stockID")]
+  }
+  #
+  ets <- rbind(ets1,ets2)
+
+  # loop
+  port <- list()
+  rtn <- vector("numeric",length = length(datelist))
+  for( i in 1:length(datelist)){
+    TD <- datelist[i]
+    TS_ <- subset(ets, (date <= TD & TD <= enddate & date < enddate) |
+                    (enddate <= TD & TD <= date & enddate < date), select = stockID) # avoid jump open, delete date
+    if(nrow(TS_)==0) next
+    #
+    TS_$date <- datelist[i]
+    TSR_ <- TS.getTech(TS_,variables = "pct_chg")
+    TSR_$wgt <- 1/nrow(TS_)
+    TSR_$wgt[TSR_$wgt > wgtmax] <- wgtmax
+    TSR_$pct_chg <- fillna(TSR_$pct_chg, "zero")
+    port[[i]] <- TSR_
+    rtn[i] <- sum(TSR_$pct_chg * TSR_$wgt)
+  }
+  # rtn
+  rtn <- fillna(rtn,"zero")
+  re <- xts::as.xts(rtn, order.by = datelist)
+  # output
+  port <- data.table::rbindlist(port)
+  relist <- list("rtn" = re, "port" = port)
+  return(relist)
+}
+
 
 # ----- ETS factor function -----
 
@@ -791,7 +890,7 @@ ets.leaderbuy <- function(){
 #'
 #' @return ETS object.
 #' @export
-ets.EQ002_forecast <- function(ob_win = 20, withlatest = FALSE){
+ets.EQ002_forecast <- function(ahead_win = 20, withlatest = TRUE){
 
   con <- db.local()
   tmpdat <- dbGetQuery(con, "select * from EE_ForecastAndReport")
@@ -823,7 +922,7 @@ ets.EQ002_forecast <- function(ob_win = 20, withlatest = FALSE){
   }
   re$date <- intdate2r(re$date)
   re <- re[!duplicated(re),]
-  re$date <- trday.nearby(re$date, -ob_win)
+  re$date <- trday.nearby(re$date, -ahead_win)
   re <- re[,c("date","stockID")]
   re <- dplyr::arrange(re, date, stockID)
   return(re)
@@ -1391,7 +1490,7 @@ rpt.EQ002_show <- function(begT=as.Date("2013-01-04"),
                            endT=Sys.Date()-1,
                            ob_win = 20, wgtmax = 0.05){
   datelist <- getRebDates(begT,endT,rebFreq = "day")
-  ets <- ets.EQ002_forecast(withlatest = TRUE, ob_win = ob_win)
+  ets <- ets.EQ002_forecast(withlatest = TRUE, ahead_win = ob_win)
   ets$enddate <- trday.nearby(ets$date, ob_win)
   port <- list()
   rtn <- c()
