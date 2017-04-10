@@ -4,11 +4,13 @@
 \alias{strategy_rtn_rough}
 \title{turning ets to rtn series}
 \usage{
-strategy_rtn_rough(etsfunc, begT = as.Date("2013-01-04"), endT = Sys.Date()
-  - 1, univ = NULL, ob_win = 20, wgtmax = 0.05)
+strategy_rtn_rough(etsfunc, funcparlist, begT = as.Date("2013-01-04"),
+  endT = Sys.Date() - 1, univ = NULL, ob_win = 20, wgtmax = 0.05)
 }
 \arguments{
-\item{etsfunc}{ETS function strings, supporting multiple functions. The length of the vector must match the length of the argument ob_win.}
+\item{etsfunc}{ETS function strings, supporting multiple functions. The length of the vector must match ob_win.}
+
+\item{funcparlist}{A list. Could be missing. Otherwise, the length of the list must match etsfunc. Each element of the list should be a list or NULL.}
 
 \item{begT}{begT}
 
@@ -29,7 +31,7 @@ A function used to turning ets to strategies and roughly calculating returns.
 \examples{
 list1 <- strategy_rtn_rough(etsfunc = "ets.EQ002_forecast", begT = as.Date("2013-01-04"), ob_win = 20)
 ggplot.WealthIndex(list1$rtn)
-list2 <- strategy_rtn_rough(etsfunc = c("ets.EQ002_forecast","ets.employeeplan"), begT = as.Date("2013-01-04"), ob_win = c(20,20))
+list2 <- strategy_rtn_rough(etsfunc = c("ets.EQ002_forecast","ets.employeeplan"), funcparlist = list(list(ahead_win = 15),NULL) , begT = as.Date("2013-01-04"), ob_win = c(15,20))
 ggplot.WealthIndex(list2$rtn)
 }
 
