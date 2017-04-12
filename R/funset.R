@@ -599,13 +599,13 @@ EE_Plot <- function(TSErr, bmk = NULL){
   return(re)
 }
 
-#' Plug in TSErr object and return the summary table
+#' Plug in TSErr object and return the mean summary table
 #'
 #' @param TSErr The TSErr object
 #' @param withSTD Logical. Whether to include STD in the return.
 #' @return Dataframe.
 #' @export
-EE_table <- function(TSErr, withSTD = TRUE){
+EE_table <- function(TSErr, withSTD = TRUE, withACC = FALSE){
   TSErr$err <- fillna(TSErr$err, method = "zero")
   tmpdat <- dplyr::group_by(TSErr, No)
   if(withSTD){
@@ -614,6 +614,9 @@ EE_table <- function(TSErr, withSTD = TRUE){
   }else{
     tmpdat <- dplyr::summarise(tmpdat, mean = mean(err))
     colnames(tmpdat) <- c("No","err")
+  }
+  if(withACC){
+    tmpdat$acc_err <- cumprod(tmpdat$err + 1)
   }
   return(tmpdat)
 }
@@ -681,6 +684,146 @@ EE_splityear <- function(TSErr, everyyear = FALSE, bmk = NULL){
   }
   reslist$data <- TSErr1
   return(reslist)
+}
+
+#' conduct day 0 statistics analysis
+#'
+#' @param ets ets.
+#' @return A list.
+#' @export
+#' @examples
+#' ets <- ets.employeeplan()
+#' EE_Day0(ets)
+EE_Day0 <- function(ets){
+  # db
+  re <- TS.getTech(ets, variables = c("pct_chg","pre_close","open","high","low"))
+  re$jump_open <- (re$open - re$pre_close)/re$pre_close
+  re$vibration <- (re$high -re$low)/re$pre_close
+  nrow1 <- nrow(re)
+  re <- na.omit(re)
+  nrow2 <- nrow(re)
+  # suspend ratio
+  suspend_ratio <- (nrow1 - nrow2)/nrow1
+  # basic stat
+  re_sub <- re[,c("pct_chg","jump_open","vibration")]
+  output_table <- data.frame("mean" = sapply(re_sub, mean), "std" = sqrt(sapply(re_sub, var)),
+                             "median" = sapply(re_sub, median), "mad" = sapply(re_sub, mad))
+  # winning ratio
+  winning_ratio <- sum(re_sub$pct_chg > 0)/nrow(re_sub)
+  # output
+  re <- list(suspend_ratio, winning_ratio, output_table)
+  names(re) <- c("suspend_ratio","winning_ratio","table")
+  return(re)
+}
+
+
+#' Wrap up ETS analyzing functions
+#'
+#' @param ets
+#' @param db The database of studying objects. Whether to study residuals or daily_pct_chg.
+#' @param win1 The time window(days) before the events happened.
+#' @param win2 The time window(days) after the events happened.
+#' @return list. Containing stat table, day0 analyzing, daily perfomance and plots.
+#' @export
+#' @examples
+#' ets <- ets.employeeplan()
+#' EE_Analyzer(ets)
+EE_Analyzer <- function(ets, db = c("EE_CroxSecReg","pct_chg"), win1 = 20, win2 = 30){
+  db <- match.arg(db)
+  tserr <- EE_GetTSErr(ets, db = db, win1 = win1, win2 = win2)
+  # daily table
+  daily_table <- EE_table(tserr, withACC = TRUE)
+  # stat table
+  stat_table <- data.frame("winning_rate" = mean(daily_table$err > 0), "rtn" = tail(daily_table$acc_err, 1), "std" = sqrt(var(daily_table$err)))
+  # ee_plot
+  fig <- EE_Plot(tserr)
+  # ee_day0
+  day_0_table <- EE_Day0(ets)
+  # output
+  relist <- list(stat_table, day_0_table, daily_table, fig)
+  names(relist) <- c("Stat", "Day 0 Performance", "Daily Performance", "Plot")
+  return(relist)
+}
+
+
+#' split ets into group and conduct analysis
+#'
+#' @param ets ETS.
+#' @param group_mode One single character string. Could be "year", "sector", "simple_sector", "EQ"(002,300,etc.), "size".
+#' @param customized_level A vector indicating how to group ets. If this argument is supplied, the group_mode will be neglect.
+#' @param db The database of studying objects. Whether to study residuals or daily_pct_chg.
+#' @param win1 The time window(days) before the events happened.
+#' @param win2 The time window(days) after the events happened.
+#' @param withplot Logical value.
+#' @param minimum_group_num The minimum number for each sub group.
+#' @return list.
+#' @export
+#' @examples
+#' ets <- ets.employeeplan()
+#' EE_SplitAnalyzer(ets,"year")
+#' EE_SplitAnalyzer(ets,"sector", minimum_group_num = 10)
+#' EE_SplitAnalyzer(ets,"simple_sector")
+#' EE_SplitAnalyzer(ets,"EQ")
+#' EE_SplitAnalyzer(ets,"size")
+EE_SplitAnalyzer <- function(ets, group_mode, customized_level,
+                             db = c("EE_CroxSecReg","pct_chg"), win1 = 20, win2 = 30,
+                             withplot = TRUE, minimum_group_num = 0){
+  # input & args
+  db <- match.arg(db)
+  # split part
+  if(missing(customized_level)){
+    if(group_mode == "year"){
+      ets$group <- lubridate::year(ets$date)
+    }else if(group_mode == "sector"){
+      ets <- getSectorID(ets)
+    }else if(group_mode == "simple_sector"){
+      ets <- getSectorID(ets, sectorAttr = list("std" = 336, "level" = 1))
+    }else if(group_mode == "EQ"){
+      ets$group <- "ZHUBAN"
+      ets$group[substr(ets$stockID,3,5) == "002"] <- "002"
+      ets$group[substr(ets$stockID,3,5) == "300"] <- "300"
+    }else if(group_mode == "size"){
+      ets <- gf.ln_mkt_cap(ets)
+      ets$group <- "small"
+      ets$group[ets$factorscore > median(ets$factorscore, na.rm = TRUE)] <- "large"
+      ets <- ets[,c("date","stockID","group")]
+    }
+  }else{
+    if(length(customized_level) != nrow(ets)) stop("The length of level must match ets.")
+    ets$group <- customized_level
+  }
+  re1 <- ets
+  colnames(re1) <- c("date","stockID","group")
+  # core part
+  loopindex <- sort(unique(re1$group))
+  re2 <- data.frame()
+  stat_df <- data.frame()
+  for( i in 1:length(loopindex)){
+    # basic process
+    dat_ <- subset(re1, group == loopindex[i])
+    ets_ <- dat_[,c("date","stockID")]
+    if(nrow(ets_) <= minimum_group_num) next
+    tserr_ <- EE_GetTSErr(ets_, db = db, win1 = win1, win2 = win2)
+    re_ <- EE_table(tserr_)
+    re_$acc_err <- cumprod(re_$err + 1)
+    re_$group <- loopindex[i]
+    re2 <- rbind(re2,re_)
+    # stat
+    df_ <- data.frame("acc_rtn" = tail(re_$acc_err,1),"std" = sqrt(var(re_$err)),"obs" = nrow(ets_), row.names = loopindex[i])
+    stat_df <- rbind(stat_df, df_)
+  }
+  # plot
+  if(withplot){
+    re2$group <- as.character(re2$group)
+    fig <- ggplot2::ggplot() +
+      ggplot2::geom_path(data = re2, ggplot2::aes(x = No, y= acc_err, colour = group), size = 1) +
+      ggplot2::geom_vline(xintercept = -1, color = 'red', linetype = 2)+
+      ggplot2::ylab("Accumulated Abnormal Return") + ggplot2::xlab("Day Series")
+  }
+  # output part - list
+  relist <- list(stat_df, fig)
+  names(relist) <- c("Stat","Plot")
+  return(relist)
 }
 
 # ----- ETS factor function -----
