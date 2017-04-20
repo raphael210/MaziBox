@@ -231,7 +231,7 @@ strategy_rtn_rough <- function(etsfunc, funcparlist,
 #' @examples
 #' ts <- ets.employeeplan()
 #' N = 9
-# 'test <- MonthMA(ts,N)
+#' test <- MonthMA(ts,N)
 MonthMA <- function(ts, N){
   # tmp funcs
   TS.getTech_ts2 <- function(TS,funchar,varname=funchar, Rate=1, RateDay=0){
