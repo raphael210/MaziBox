@@ -2,17 +2,19 @@
 % Please edit documentation in R/funset.R
 \name{EE_table}
 \alias{EE_table}
-\title{Plug in TSErr object and return the summary table}
+\title{Plug in TSErr object and return the mean summary table}
 \usage{
-EE_table(TSErr)
+EE_table(TSErr, withSTD = TRUE, withACC = FALSE)
 }
 \arguments{
 \item{TSErr}{The TSErr object}
+
+\item{withSTD}{Logical. Whether to include STD in the return.}
 }
 \value{
-Table.
+Dataframe.
 }
 \description{
-Plug in TSErr object and return the summary table
+Plug in TSErr object and return the mean summary table
 }
 

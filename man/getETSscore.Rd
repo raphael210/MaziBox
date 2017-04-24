@@ -4,7 +4,9 @@
 \alias{getETSscore}
 \title{plug in ts object and return with ets score.}
 \usage{
-getETSscore(tsobj, EventSet = NULL, rollwin = 20)
+getETSscore(tsobj, EventSet = NULL, ee_win = 30, rollwin = 20,
+  sub_mode = c("mean", "sum"), mode = c("mean", "sum"),
+  withdetails = TRUE)
 }
 \arguments{
 \item{tsobj}{A tsobj.}

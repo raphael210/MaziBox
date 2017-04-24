@@ -4,7 +4,7 @@
 \alias{EE_splityear}
 \title{Split and return the plots of each year}
 \usage{
-EE_splityear(TSErr, everyyear = FALSE, breakwindow = FALSE, bmk = NULL)
+EE_splityear(TSErr, everyyear = FALSE, bmk = NULL)
 }
 \arguments{
 \item{TSErr}{The TSErr object.}

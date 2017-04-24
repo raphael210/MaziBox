@@ -4,7 +4,7 @@
 \alias{lcdb.build.EE_CroxSecReg}
 \title{lcdb.build.EE_CroxSecReg}
 \usage{
-lcdb.build.EE_CroxSecReg()
+lcdb.build.EE_CroxSecReg(begT, endT, factorLists)
 }
 \description{
 lcdb.build.EE_CroxSecReg
